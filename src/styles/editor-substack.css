@@ -1,0 +1,165 @@
+/* Substack preset — matches Substack post body, set on warm canvas paper. */
+[data-theme='substack'] .editor-canvas-wrap {
+  position: relative;
+  padding: 24px 16px 64px;
+}
+
+[data-theme='substack'] .editor-canvas {
+  position: relative;
+  font-family: 'Spectral', 'Source Serif Pro', Georgia, serif;
+  font-size: 19px;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
+  color: #1a1a1a;
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 56px 64px 80px;
+  background: var(--color-canvas);
+  box-shadow: var(--shadow-page);
+}
+
+/* Printer's registration marks — corners. Tied to the Foundry print metaphor
+   without breaking platform fidelity (they're outside the content area). */
+[data-theme='substack'] .editor-canvas::before,
+[data-theme='substack'] .editor-canvas::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+[data-theme='substack'] .editor-canvas::before {
+  top: 12px;
+  left: 12px;
+  border-top: 1px solid var(--color-vermilion);
+  border-left: 1px solid var(--color-vermilion);
+}
+[data-theme='substack'] .editor-canvas::after {
+  bottom: 12px;
+  right: 12px;
+  border-bottom: 1px solid var(--color-vermilion);
+  border-right: 1px solid var(--color-vermilion);
+}
+
+[data-theme='substack'] .editor-canvas .ProseMirror {
+  outline: none;
+}
+
+[data-theme='substack'] .editor-canvas h1 {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0 0 28px;
+  color: #161616;
+}
+
+[data-theme='substack'] .editor-canvas h2 {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 1.5em 0 0.5em;
+  color: #1a1a1a;
+}
+
+[data-theme='substack'] .editor-canvas h3 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 1.4em 0 0.4em;
+  color: #1a1a1a;
+}
+
+[data-theme='substack'] .editor-canvas p {
+  margin: 0 0 1em;
+}
+
+[data-theme='substack'] .editor-canvas blockquote {
+  border-left: 3px solid #ccc;
+  padding: 4px 16px;
+  margin: 24px 0;
+  font-style: italic;
+  color: #555;
+}
+
+[data-theme='substack'] .editor-canvas blockquote p {
+  margin: 0 0 0.5em;
+}
+
+[data-theme='substack'] .editor-canvas a {
+  color: #1a1a1a;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+[data-theme='substack'] .editor-canvas a:hover {
+  color: #a32d2d;
+}
+
+[data-theme='substack'] .editor-canvas hr {
+  border: none;
+  text-align: center;
+  margin: 32px 0;
+  height: 1em;
+}
+
+[data-theme='substack'] .editor-canvas hr::after {
+  content: '· · ·';
+  color: #999;
+  letter-spacing: 12px;
+  font-size: 24px;
+}
+
+[data-theme='substack'] .editor-canvas img {
+  width: 100%;
+  height: auto;
+  margin: 24px 0;
+  border-radius: 0;
+}
+
+[data-theme='substack'] .editor-canvas ul,
+[data-theme='substack'] .editor-canvas ol {
+  margin: 0 0 1em;
+  padding-left: 1.5em;
+}
+
+[data-theme='substack'] .editor-canvas ul {
+  list-style: disc;
+}
+
+[data-theme='substack'] .editor-canvas ol {
+  list-style: decimal;
+}
+
+[data-theme='substack'] .editor-canvas li {
+  margin-bottom: 0.3em;
+}
+
+[data-theme='substack'] .editor-canvas code {
+  background: #f3f3f3;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+[data-theme='substack'] .editor-canvas pre {
+  background: #f6f6f6;
+  border-radius: 4px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 1em 0;
+}
+
+[data-theme='substack'] .editor-canvas pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+[data-theme='substack'] .editor-canvas strong { font-weight: 700; }
+[data-theme='substack'] .editor-canvas em { font-style: italic; }

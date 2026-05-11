@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Paper background -->
+  <rect width="32" height="32" rx="3" fill="#f4efe6"/>
+  <!-- Letterpress "M" in vermilion -->
+  <path d="M6 24 L6 8 L10 8 L16 16 L22 8 L26 8 L26 24 L22 24 L22 14 L17 21 L15 21 L10 14 L10 24 Z" fill="#e64727"/>
+  <!-- Top-right registration mark -->
+  <path d="M28 4 L28 7 L25 7" stroke="#e64727" stroke-width="1" fill="none"/>
+  <!-- Bottom-left registration mark -->
+  <path d="M4 25 L4 28 L7 28" stroke="#e64727" stroke-width="1" fill="none"/>
+</svg>
