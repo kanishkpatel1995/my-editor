@@ -304,11 +304,17 @@ export default function App() {
     const flatten = (s: ReturnType<typeof useAnvilStore.getState>['session']) => {
       if (!s) return { annotations: [], claims: [], comps: [] }
       const annotations = s.paragraphs.flatMap((p) =>
-        p.annotations.map((a) => ({
-          id: a.id,
-          span: a.span,
-          decision: (a.decision || 'pending') as 'pending' | 'accepted' | 'rejected',
-        })),
+        p.annotations
+          // CONFABULATION GUARD: skip annotations whose span doesn't appear
+          // verbatim in the paragraph. They render in the side panel with a
+          // "couldn't anchor" badge but never get a strikethrough.
+          .filter((a) => !a.unanchored)
+          .map((a) => ({
+            id: a.id,
+            span: a.span,
+            note: a.note,
+            decision: (a.decision || 'pending') as 'pending' | 'accepted' | 'rejected',
+          })),
       )
       const claims = s.paragraphs.flatMap((p) =>
         p.claims.map((c) => ({

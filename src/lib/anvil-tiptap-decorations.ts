@@ -20,6 +20,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 export interface AnvilDecorationInput {
   id: string
   span: string
+  /** First line of the analyst's note, used as the native hover tooltip. */
+  note?: string
   /** Soft display state — controls strikethrough class. */
   decision: 'pending' | 'accepted' | 'rejected'
 }
@@ -158,12 +160,15 @@ function buildDecorations(
         if (idx === -1) break
         const from = pos + idx
         const to = from + ann.span.length
-        decos.push(
-          Decoration.inline(from, to, {
-            class: 'anvil-strike',
-            'data-anvil-id': ann.id,
-          }),
-        )
+        // Note preview as native hover tooltip — first 200 chars of the
+        // analyst's note. Full popover still opens on click.
+        const preview = (ann.note || 'click to see correction').slice(0, 200)
+        const attrs: Record<string, string> = {
+          class: 'anvil-strike',
+          'data-anvil-id': ann.id,
+          title: preview,
+        }
+        decos.push(Decoration.inline(from, to, attrs))
         searchFrom = idx + ann.span.length
       }
     }
@@ -218,29 +223,36 @@ export const AnvilDecorationsExtension = Extension.create({
           decorations(state) {
             return anvilDecorationsKey.getState(state)
           },
-          handleClick(view, _pos, event) {
-            const target = event.target as HTMLElement | null
-            const stricken = target?.closest('.anvil-strike') as HTMLElement | null
-            if (stricken) {
-              const id = stricken.getAttribute('data-anvil-id') || ''
-              const rect = stricken.getBoundingClientRect()
-              window.dispatchEvent(new CustomEvent<AnvilAnnotationClickDetail>(
-                'anvil:annotation-click',
-                { detail: { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } },
-              ))
-              return true
-            }
-            const claimEl = target?.closest('.anvil-claim') as HTMLElement | null
-            if (claimEl) {
-              const id = claimEl.getAttribute('data-anvil-claim-id') || ''
-              const rect = claimEl.getBoundingClientRect()
-              window.dispatchEvent(new CustomEvent<AnvilAnnotationClickDetail>(
-                'anvil:claim-click',
-                { detail: { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } },
-              ))
-              return true
-            }
-            return false
+          // handleDOMEvents fires for every DOM click before ProseMirror's
+          // cursor-positioning logic gets to it — far more reliable than
+          // handleClick for picking up clicks on inline decorations.
+          handleDOMEvents: {
+            click(_view, event) {
+              const target = event.target as HTMLElement | null
+              const stricken = target?.closest('.anvil-strike') as HTMLElement | null
+              if (stricken) {
+                const id = stricken.getAttribute('data-anvil-id') || ''
+                const rect = stricken.getBoundingClientRect()
+                window.dispatchEvent(new CustomEvent<AnvilAnnotationClickDetail>(
+                  'anvil:annotation-click',
+                  { detail: { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } },
+                ))
+                event.preventDefault()
+                return true
+              }
+              const claimEl = target?.closest('.anvil-claim') as HTMLElement | null
+              if (claimEl) {
+                const id = claimEl.getAttribute('data-anvil-claim-id') || ''
+                const rect = claimEl.getBoundingClientRect()
+                window.dispatchEvent(new CustomEvent<AnvilAnnotationClickDetail>(
+                  'anvil:claim-click',
+                  { detail: { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } },
+                ))
+                event.preventDefault()
+                return true
+              }
+              return false
+            },
           },
         },
       }),

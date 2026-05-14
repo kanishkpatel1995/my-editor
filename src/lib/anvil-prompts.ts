@@ -43,19 +43,34 @@ using these exact headers. A downstream parser keys off them.
 
 ## Annotations
 
-A bulleted list of specific phrase-level issues. Each bullet must follow the
+A bulleted list of specific phrase-level issues. Each bullet MUST follow the
 template:
   - "<verbatim quoted span>" — <issue>; <concrete suggested replacement>
 
-Examples of the granularity expected:
+CRITICAL — verbatim only:
+  The quoted span MUST appear LITERALLY in the TARGET paragraph above.
+  Copy it character-for-character from the paragraph. If you cannot find a
+  verbatim phrase in the paragraph that has a real issue, output:
+    - none
+  Do NOT invent quotes. Do NOT list common AI-slop markers (delve, leverage,
+  tapestry, robust, navigate, etc.) UNLESS they appear verbatim in the
+  target paragraph. A downstream check rejects every annotation whose span
+  is not found in the paragraph, so confabulated quotes are wasted output.
+
+Examples of valid annotations (only if these words literally appear in
+the target paragraph):
   - "since 2017" — false; MoE concept dates to Jacobs 1991, Shazeer 2017
     popularised sparse MoE-at-scale. Suggested replacement: "since the
     original Transformer".
   - "every architecture innovation" — over-claim, drop "every", use "most
     dense-transformer innovations".
 
-If no annotations are needed, write a single bullet:
+If the target paragraph is short, structural, transitional, or has no
+real issues, the correct answer is:
   - none
+
+Annotations are EXPENSIVE for the reader (each one demands a decision).
+Be parsimonious — fewer high-quality annotations beat many low-quality ones.
 
 ## Slop
 

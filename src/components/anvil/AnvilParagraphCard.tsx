@@ -54,10 +54,28 @@ export function AnvilParagraphCard({ paragraph, isCurrent }: Props) {
       {p.annotations.length ? (
         <div className="mb-2 space-y-1.5">
           {p.annotations.map((a, i) => (
-            <div key={i} className="border-l-2 border-vermilion bg-paper-2 pl-2 py-1 pr-2">
+            <div
+              key={i}
+              className={
+                a.unanchored
+                  ? 'border-l-2 border-goldenrod bg-paper-2 pl-2 py-1 pr-2 opacity-70'
+                  : 'border-l-2 border-vermilion bg-paper-2 pl-2 py-1 pr-2'
+              }
+            >
               {a.span ? (
-                <div className="font-mono text-[10px] tracking-tight text-vermilion">
+                <div className={
+                  'font-mono text-[10px] tracking-tight ' +
+                  (a.unanchored ? 'text-goldenrod' : 'text-vermilion')
+                }>
                   ◌ &quot;{a.span}&quot;
+                  {a.unanchored ? (
+                    <span
+                      className="ml-1.5 border border-goldenrod px-1 py-0 font-mono text-[8.5px] uppercase tracking-tight"
+                      title="The analyst's quoted span doesn't appear verbatim in this paragraph — likely a confabulation."
+                    >
+                      couldn't anchor
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
               <div className="text-[12.5px] leading-snug text-ink">{a.note}</div>

@@ -20,6 +20,24 @@ function stripFrontmatter(md: string): string {
   return end === -1 ? md : md.slice(end + 4).replace(/^\n/, '')
 }
 
+/**
+ * A "pseudo-heading" is a short, single-line, entirely-bolded paragraph that
+ * the author used as a section label (e.g. `**Five sentences to take with you**`)
+ * instead of an ATX heading. We treat them as headings — analysing them is a
+ * waste and reliably triggers analyst confabulation.
+ */
+function isShortBoldPseudoHeading(text: string): boolean {
+  // Single line.
+  if (text.includes('\n')) return false
+  // Wrapped in `**` start to end (allow trailing punctuation just in case).
+  if (!/^\*\*[^*]+\*\*\s*[.!?:]?\s*$/.test(text)) return false
+  // Short — under ~12 words and 80 chars after stripping the stars.
+  const inner = text.replace(/^\*\*|\*\*\s*[.!?:]?\s*$/g, '')
+  if (inner.length > 80) return false
+  if (inner.split(/\s+/).length > 12) return false
+  return true
+}
+
 export function segmentArticle(markdown: string): AnvilSegment[] {
   const body = stripFrontmatter(markdown)
   const lines = body.split('\n')
@@ -45,6 +63,12 @@ export function segmentArticle(markdown: string): AnvilSegment[] {
         segments.push({ index: idx, text, skip: true, skipReason: 'image' })
       } else if (/^-{3,}$|^\*{3,}$|^_{3,}$/.test(text)) {
         segments.push({ index: idx, text, skip: true, skipReason: 'rule' })
+      } else if (isShortBoldPseudoHeading(text)) {
+        // E.g. **Five sentences to take with you** on its own line — markdown
+        // bold used as a section heading rather than ATX `## `. Single-line,
+        // entirely-bold, short. Treat as a heading so the analyst doesn't
+        // waste tokens (and confabulate) on a structural label.
+        segments.push({ index: idx, text, skip: true, skipReason: 'heading' })
       } else {
         segments.push({ index: idx, text, skip: false })
       }

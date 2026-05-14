@@ -111,6 +111,10 @@ export interface AnvilAnnotation {
   suggestion?: string
   /** User decision: 'accepted' applied to doc, 'rejected' dismissed, 'pending' default. */
   decision?: 'accepted' | 'rejected' | 'pending'
+  /** True when the analyst's `span` does NOT appear verbatim in the paragraph.
+   *  We detect confabulation and refuse to render a strikethrough; the side
+   *  panel shows the annotation with a "couldn't anchor" badge instead. */
+  unanchored?: boolean
 }
 
 export interface AnvilClaim {

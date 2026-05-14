@@ -93,6 +93,11 @@ interface AnvilStore {
   /** Manual override — user asserts the claim is true without running the
    *  web verifier. Costs nothing. */
   markClaimOk: (claimId: string) => Promise<void>
+
+  /** Run a quick web search to gather context about a span (used from the
+   *  strikethrough popover when the user wants more info before deciding).
+   *  Returns the streamed research text; caller renders it. */
+  searchWebForSpan: (span: string, contextParagraph: string, onDelta: (s: string) => void) => Promise<string>
 }
 
 function emptySession(opts: {
@@ -541,6 +546,37 @@ export const useAnvilStore = create<AnvilStore>((set, get) => ({
     await persistSession(next)
   },
 
+  searchWebForSpan: async (span, contextParagraph, onDelta) => {
+    const config = useChatStore.getState().config
+    const s = get().session
+    if (!config || !s) throw new Error('No active session/config')
+    const prompt = `Quick web research on a span from an article.
+
+Context paragraph (for what topic this is about):
+"""
+${contextParagraph}
+"""
+
+Span the editor flagged:
+"${span}"
+
+Search the web for accurate, current information about this span. Then
+write 2-4 sentences summarising what you found that's relevant to whether
+the span is correct, current, or worth changing. End with a bulleted list
+of 1-3 source URLs.
+
+Output ONLY the research summary + sources. No preamble.`
+    let buf = ''
+    await streamChat({
+      apiKey: config.apiKey,
+      model: s.verifierModel,
+      messages: [{ role: 'user', content: prompt }],
+      webSearch: true,
+      onTextDelta: (d) => { buf += d; onDelta(d) },
+    })
+    return buf.trim()
+  },
+
   markClaimOk: async (claimId) => {
     const s = get().session
     if (!s) return
@@ -672,11 +708,24 @@ async function runLoop(): Promise<void> {
           const parsed = parseAnalystOutput(raw)
           // Assign stable IDs: `p<index>-a<n>-<span-hash>` so re-parses on
           // subsequent deltas keep the same id and editor decorations stay put.
-          const withIds = parsed.annotations.map((a, n) => ({
-            ...a,
-            id: makeAnnotationId(para.index, n, a.span),
-            decision: a.decision || 'pending',
-          }))
+          //
+          // CONFABULATION GUARD: the analyst sometimes emits spans that don't
+          // literally appear in the paragraph (it picks canonical AI-slop
+          // markers from the prompt's lexicon instead of true quotes). We
+          // detect that by checking `para.text.includes(span)` and mark such
+          // annotations `unanchored: true`. The editor decoration push then
+          // filters them out (no strikethrough), and the side-panel card
+          // renders them with a "couldn't anchor" badge so the user knows.
+          const withIds = parsed.annotations.map((a, n) => {
+            const span = (a.span || '').trim()
+            const unanchored = !!span && !para.text.includes(span)
+            return {
+              ...a,
+              id: makeAnnotationId(para.index, n, a.span),
+              decision: a.decision || 'pending',
+              unanchored,
+            }
+          })
           const claimsWithIds = parsed.claims.map((c, n) => ({
             ...c,
             id: makeClaimId(para.index, n, c.text),

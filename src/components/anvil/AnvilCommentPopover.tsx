@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, X, Wand2, Sparkles } from 'lucide-react'
+import { Check, X, Wand2, Sparkles, Undo2, Search } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import type { Editor as TipTapEditor } from '@tiptap/react'
@@ -24,12 +24,15 @@ export function AnvilCommentPopover({ editor }: Props) {
   const session = useAnvilStore((s) => s.session)
   const setDecision = useAnvilStore((s) => s.setAnnotationDecision)
   const rewriteSpan = useAnvilStore((s) => s.rewriteSpan)
+  const searchWebForSpan = useAnvilStore((s) => s.searchWebForSpan)
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
   const [rewriteMode, setRewriteMode] = useState(false)
   const [rewriteInstruction, setRewriteInstruction] = useState('')
   const [rewriting, setRewriting] = useState(false)
+  const [webResearchBuf, setWebResearchBuf] = useState<string>('')
+  const [webResearching, setWebResearching] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   // Listen for strikethrough clicks dispatched by the Tiptap plugin.
@@ -42,6 +45,8 @@ export function AnvilCommentPopover({ editor }: Props) {
       setAnchor({ x: detail.rect.x, y: detail.rect.y + detail.rect.height + 6 })
       setRewriteMode(false)
       setRewriteInstruction('')
+      setWebResearchBuf('')
+      setWebResearching(false)
     }
     window.addEventListener('anvil:annotation-click', onClick)
     return () => window.removeEventListener('anvil:annotation-click', onClick)
@@ -102,6 +107,21 @@ export function AnvilCommentPopover({ editor }: Props) {
   const reject = async () => {
     await setDecision(activeId, 'rejected')
     setActiveId(null)
+  }
+
+  const searchWeb = async () => {
+    if (webResearching) return
+    setWebResearching(true)
+    setWebResearchBuf('')
+    try {
+      await searchWebForSpan(annotation.span, paragraphText, (delta) => {
+        setWebResearchBuf((prev) => prev + delta)
+      })
+    } catch (e) {
+      toast.error('Web search failed: ' + (e as Error).message)
+    } finally {
+      setWebResearching(false)
+    }
   }
 
   const submitRewrite = async () => {
@@ -167,26 +187,39 @@ export function AnvilCommentPopover({ editor }: Props) {
         ) : null}
       </div>
 
+      {/* Web research output, only shown when the user clicked "Search web". */}
+      {(webResearching || webResearchBuf) ? (
+        <div className="border-t border-rule-soft px-3 py-2 bg-paper-2">
+          <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.12em] text-goldenrod">
+            🔍 Web research
+            {webResearching ? <span className="ml-1 text-mute">· streaming…</span> : null}
+          </div>
+          <div className="whitespace-pre-wrap text-[12px] leading-snug text-ink-soft">
+            {webResearchBuf || <span className="text-mute">…</span>}
+          </div>
+        </div>
+      ) : null}
+
       {!rewriteMode ? (
-        <div className="flex items-center gap-1 border-t border-rule-soft px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1 border-t border-rule-soft px-2 py-1.5">
           <Button
             variant="primary"
             size="sm"
             leading={<Check size={11} />}
             onClick={apply}
             disabled={!annotation.suggestion}
-            title={annotation.suggestion ? 'Replace span with suggestion' : 'No suggestion to apply — use rewrite'}
+            title={annotation.suggestion ? 'Replace span with the suggested text' : 'No suggested replacement parsed — use Rewrite'}
           >
             Apply
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            leading={<X size={11} />}
+            leading={<Undo2 size={11} />}
             onClick={reject}
-            title="Dismiss this annotation (text unchanged)"
+            title="Remove the strikethrough — text stays exactly as written"
           >
-            Reject
+            Keep original
           </Button>
           <Button
             variant="ghost"
@@ -196,6 +229,16 @@ export function AnvilCommentPopover({ editor }: Props) {
             title="Tell the AI how to rewrite this span"
           >
             Rewrite
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            leading={<Search size={11} />}
+            onClick={() => void searchWeb()}
+            disabled={webResearching}
+            title="Get web-search context to help you decide (uses the ANVIL verifier model)"
+          >
+            {webResearching ? 'Searching…' : 'Search web'}
           </Button>
         </div>
       ) : (
