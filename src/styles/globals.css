@@ -179,6 +179,93 @@ body {
   background: var(--color-vermilion-tint);
 }
 
+/* ANVIL claim decorations — colour underline by verdict. */
+.anvil-claim {
+  text-decoration: underline dotted var(--color-goldenrod);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: background 120ms ease-out, text-decoration-color 120ms ease-out;
+  border-radius: 1px;
+  padding: 0 1px;
+}
+.anvil-claim:hover {
+  background: rgba(184, 134, 11, 0.10);  /* goldenrod-tint */
+}
+.anvil-claim.busy {
+  text-decoration: underline dashed var(--color-goldenrod);
+  animation: anvil-claim-pulse 1.4s ease-in-out infinite;
+}
+@keyframes anvil-claim-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+.anvil-claim.t {
+  text-decoration: underline solid var(--color-moss);
+  text-decoration-thickness: 1.5px;
+}
+.anvil-claim.ok {
+  text-decoration: underline solid var(--color-moss);
+  text-decoration-thickness: 1.5px;
+}
+.anvil-claim.f {
+  text-decoration: underline solid var(--color-vermilion);
+  text-decoration-thickness: 2.5px;
+  background: rgba(230, 71, 39, 0.08);
+}
+.anvil-claim.i {
+  text-decoration: underline dashed var(--color-goldenrod);
+  text-decoration-thickness: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anvil-claim.busy { animation: none; }
+}
+
+/* ANVIL inline comprehension chip — sits at end-of-paragraph as a widget
+ * decoration. Block display so it appears on its own line below the paragraph. */
+.anvil-q-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-rule-soft);
+  background: var(--color-paper-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--color-mute);
+  cursor: pointer;
+  user-select: none;
+  border-radius: 0;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.anvil-q-chip:hover {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+.anvil-q-chip.unanswered {
+  border-color: var(--color-vermilion);
+  color: var(--color-vermilion);
+  background: var(--color-vermilion-tint);
+}
+.anvil-q-chip.unanswered:hover {
+  background: var(--color-vermilion);
+  color: var(--color-paper);
+}
+.anvil-q-chip.answered {
+  border-color: var(--color-moss);
+  color: var(--color-moss);
+}
+.anvil-q-chip.deferred {
+  border-color: var(--color-goldenrod);
+  color: var(--color-goldenrod);
+}
+.anvil-q-chip.skipped,
+.anvil-q-chip.transitional {
+  opacity: 0.55;
+}
+
 /* ──────────────────────────────────────────────────────────────────────
    Resize gutters — 6 px hit zones, idle-invisible.
    Hover/focus reveals a vermilion hairline + two `··` grip dots.

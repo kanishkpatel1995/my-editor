@@ -18,6 +18,8 @@ import { useArticleStore } from './store/articleStore'
 import { useAnvilStore } from './store/anvilStore'
 import { setAnvilDecorations, clearAnvilDecorations } from './lib/anvil-tiptap-decorations'
 import { AnvilCommentPopover } from './components/anvil/AnvilCommentPopover'
+import { AnvilClaimPopover } from './components/anvil/AnvilClaimPopover'
+import { AnvilComprehensionPopover } from './components/anvil/AnvilComprehensionPopover'
 import { copyImageNearArticle } from './lib/image-utils'
 import { stripBase64Images } from './lib/prompts'
 import type { ArticleRef, CompanionKind } from './types'
@@ -285,24 +287,58 @@ export default function App() {
     }
   }, [])
 
-  // Push ANVIL annotations into the editor as inline decorations whenever
-  // the session changes. Cleared automatically when no session is open.
+  // Auto-hydrate the ANVIL panel whenever the open article changes — picks up
+  // a prior .anvil.md session from disk and shows the stale banner if the
+  // article text has drifted since that proof.
+  useEffect(() => {
+    if (!articleCurrent) return
+    const text = useArticleStore.getState().currentText
+    if (!text) return
+    void useAnvilStore.getState().hydrateForArticle(articleCurrent.slug, text)
+  }, [articleCurrent])
+
+  // Push ANVIL annotations + claim decorations into the editor whenever the
+  // session changes. Cleared automatically when no session is open.
   useEffect(() => {
     if (!editorInstance) return
-    const apply = (annotations: Array<{ id: string; span: string; decision: 'pending' | 'accepted' | 'rejected' }>) => {
-      if (annotations.length) setAnvilDecorations(editorInstance.view, annotations)
-      else clearAnvilDecorations(editorInstance.view)
-    }
-    const flatten = (s: ReturnType<typeof useAnvilStore.getState>['session']) =>
-      s ? s.paragraphs.flatMap((p) =>
+    const flatten = (s: ReturnType<typeof useAnvilStore.getState>['session']) => {
+      if (!s) return { annotations: [], claims: [], comps: [] }
+      const annotations = s.paragraphs.flatMap((p) =>
         p.annotations.map((a) => ({
           id: a.id,
           span: a.span,
           decision: (a.decision || 'pending') as 'pending' | 'accepted' | 'rejected',
         })),
-      ) : []
-    apply(flatten(useAnvilStore.getState().session))
-    const unsub = useAnvilStore.subscribe((s) => apply(flatten(s.session)))
+      )
+      const claims = s.paragraphs.flatMap((p) =>
+        p.claims.map((c) => ({
+          id: c.id,
+          text: c.text,
+          verdict: c.verdict,
+        })),
+      )
+      // Only show comprehension chips for paragraphs the analyst actually
+      // analysed (skipped / pending / failed → no chip).
+      const comps = s.paragraphs
+        .filter((p) => p.status === 'analysed' && p.comprehension)
+        .map((p) => ({
+          paragraphIndex: p.index,
+          paragraphPrefix: p.text.slice(0, 60),
+          state: p.comprehension!.state,
+          isTransitional: p.comprehension!.isTransitional,
+        }))
+      return { annotations, claims, comps }
+    }
+    const apply = (s: ReturnType<typeof useAnvilStore.getState>['session']) => {
+      const { annotations, claims, comps } = flatten(s)
+      if (annotations.length || claims.length || comps.length) {
+        setAnvilDecorations(editorInstance.view, annotations, claims, comps)
+      } else {
+        clearAnvilDecorations(editorInstance.view)
+      }
+    }
+    apply(useAnvilStore.getState().session)
+    const unsub = useAnvilStore.subscribe((st) => apply(st.session))
     return () => {
       unsub()
       clearAnvilDecorations(editorInstance.view)
@@ -457,6 +493,8 @@ export default function App() {
         />
       </div>
       <AnvilCommentPopover editor={editorInstance} />
+      <AnvilClaimPopover />
+      <AnvilComprehensionPopover />
       <Toaster
         position="bottom-right"
         toastOptions={{

@@ -118,12 +118,17 @@ function parseClaims(body: string): AnvilClaim[] {
     const m = inner.match(/^["“]?([^"”]+?)["”]?\s*(?:→|->|—|–|-)\s*\[(ok|verify)\]\s*$/i)
     if (m) {
       out.push({
+        id: '', // assigned by the store
         text: m[1].trim(),
         verdict: m[2].toLowerCase() === 'ok' ? 'ok' : 'verify',
       })
     } else {
       // Plain bullet — treat as verify by default
-      out.push({ text: inner.replace(/^["“]|["”]$/g, '').trim(), verdict: 'verify' })
+      out.push({
+        id: '',
+        text: inner.replace(/^["“]|["”]$/g, '').trim(),
+        verdict: 'verify',
+      })
     }
   }
   return out

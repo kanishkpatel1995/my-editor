@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react'
+import { ListTree, AlertTriangle } from 'lucide-react'
+import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import { AnvilMetricsHeader } from './AnvilMetricsHeader'
 import { AnvilControls } from './AnvilControls'
 import { AnvilParagraphCard } from './AnvilParagraphCard'
 import { AnvilThinkingTape } from './AnvilThinkingTape'
+import { AnvilSessionsList } from './AnvilSessionsList'
 
 /**
  * Body of the ANVIL tab. Rendered inside the right-rail aside, alongside
@@ -12,8 +15,14 @@ import { AnvilThinkingTape } from './AnvilThinkingTape'
 export function AnvilPanel() {
   const session = useAnvilStore((s) => s.session)
   const currentIndex = useAnvilStore((s) => s.currentIndex)
+  const showList = useAnvilStore((s) => s.showSessionsList)
+  const setShowList = useAnvilStore((s) => s.setShowSessionsList)
+  const staleAgainstArticle = useAnvilStore((s) => s.staleAgainstArticle)
+  const start = useAnvilStore((s) => s.start)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
+
+  if (showList) return <AnvilSessionsList />
 
   // Auto-scroll to the currently-analysed paragraph while running.
   useEffect(() => {
@@ -28,6 +37,44 @@ export function AnvilPanel() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Sessions header row */}
+      <div className="flex items-center gap-1.5 border-b border-rule-soft px-2.5 py-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          leading={<ListTree size={11} />}
+          onClick={() => setShowList(true)}
+          title="Browse past ANVIL sessions on disk"
+        >
+          Sessions
+        </Button>
+        {session ? (
+          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-mute truncate" title={session.articleSlug}>
+            · {session.articleSlug}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Stale-article banner */}
+      {staleAgainstArticle && session ? (
+        <div className="border-b border-vermilion bg-vermilion-tint px-3 py-1.5">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle size={11} className="mt-0.5 flex-shrink-0 text-vermilion" />
+            <div className="text-[11.5px] leading-snug text-ink">
+              Article changed since this proof. Paragraph contents in the cards
+              may be stale.
+              <button
+                type="button"
+                onClick={() => void start()}
+                className="ml-1 font-mono uppercase tracking-[0.08em] text-vermilion underline-offset-2 hover:underline"
+              >
+                Re-run on current text
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <AnvilMetricsHeader session={session} />
       <AnvilControls />
 

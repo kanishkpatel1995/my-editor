@@ -114,9 +114,14 @@ export interface AnvilAnnotation {
 }
 
 export interface AnvilClaim {
+  /** Stable id: paragraphIndex + ordinal + hash(text). */
+  id: string
   text: string
-  /** Verifier verdict, or `pending` while web-search call is in flight. */
+  /** Verifier verdict; `pending` while the web-search call is in flight. */
   verdict: 'ok' | 'verify' | 'verified-true' | 'verified-false' | 'inconclusive' | 'pending'
+  confidence?: 'low' | 'medium' | 'high'
+  /** One-sentence verdict explanation from the verifier. */
+  explanation?: string
   /** Citation URLs returned by the verifier model. */
   sources?: string[]
 }

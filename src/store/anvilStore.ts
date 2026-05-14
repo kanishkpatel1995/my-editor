@@ -6,11 +6,14 @@ import { streamChat } from '../lib/openrouter'
 import { segmentArticle } from '../lib/anvil-segmenter'
 import {
   buildAnalystPrompt, buildSocraticFollowupPrompt, buildExplainerPrompt,
+  buildVerifierPrompt,
 } from '../lib/anvil-prompts'
+import { parseVerifierResponse } from '../lib/anvil-verifier'
 import { parseAnalystOutput } from '../lib/anvil-parser'
 import {
   ensureAnvilFolder, sha256Hex, writeAnvilSession, readAnvilSession, computeMetrics,
 } from '../lib/anvil-storage'
+import { listAnvilSessions, type AnvilHistoryEntry } from '../lib/anvil-history'
 import { useChatStore } from './chatStore'
 import { useArticleStore } from './articleStore'
 import { pricePerMTokens } from '../lib/openrouter'
@@ -37,6 +40,16 @@ interface AnvilStore {
   /** Abort controller for the in-flight analyst call. */
   abortController: AbortController | null
 
+  /** True when the loaded session's article_sha doesn't match the current
+   *  article's SHA — paragraph contents are out of date. */
+  staleAgainstArticle: boolean
+
+  /** When non-null, the panel shows the history list instead of the cards. */
+  showSessionsList: boolean
+  /** Cached history list. Refreshed on demand. */
+  history: AnvilHistoryEntry[]
+  historyLoadedAt: number
+
   // Actions
   setOpen: (open: boolean) => void
   setActiveTab: (tab: 'chat' | 'anvil') => void
@@ -59,6 +72,27 @@ interface AnvilStore {
   /** Run a one-shot rewrite of a span via the explainer model.
    *  Returns the rewritten text. Caller is responsible for putting it in the doc. */
   rewriteSpan: (originalSpan: string, userInstruction: string, contextParagraph: string) => Promise<string>
+
+  /** Auto-load a prior session for the given article if one exists on disk.
+   *  Fired on article-switch. SHA mismatch sets `staleAgainstArticle`. */
+  hydrateForArticle: (slug: string, articleText: string) => Promise<void>
+
+  /** Refresh the on-disk history list. */
+  refreshHistory: () => Promise<void>
+
+  /** Load a session-by-slug from disk into the panel (without changing
+   *  which article is open in the editor). */
+  loadSessionFromDisk: (slug: string) => Promise<void>
+
+  setShowSessionsList: (v: boolean) => void
+
+  /** Run the verifier (web-search) on one claim by id. Updates verdict +
+   *  sources in place; persists. Marks `pending` immediately so the popover
+   *  can show a busy indicator. */
+  verifyClaim: (claimId: string) => Promise<void>
+  /** Manual override — user asserts the claim is true without running the
+   *  web verifier. Costs nothing. */
+  markClaimOk: (claimId: string) => Promise<void>
 }
 
 function emptySession(opts: {
@@ -127,6 +161,10 @@ export const useAnvilStore = create<AnvilStore>((set, get) => ({
   isRunning: false,
   isPaused: false,
   abortController: null,
+  staleAgainstArticle: false,
+  showSessionsList: false,
+  history: [],
+  historyLoadedAt: 0,
 
   setOpen: (open) => {
     set({ open })
@@ -387,6 +425,135 @@ export const useAnvilStore = create<AnvilStore>((set, get) => ({
     await persistSession(next)
   },
 
+  hydrateForArticle: async (slug, articleText) => {
+    const root = useArticleStore.getState().rootDir
+    if (!root) return
+    try {
+      const dir = await ensureAnvilFolder(root)
+      const prior = await readAnvilSession(dir, slug)
+      if (!prior) {
+        set({ session: null, staleAgainstArticle: false, currentIndex: null, thinking: '' })
+        return
+      }
+      const sha = await sha256Hex(articleText)
+      const stale = sha !== prior.articleSha
+      set({
+        session: prior,
+        staleAgainstArticle: stale,
+        currentIndex: null,
+        thinking: '',
+      })
+    } catch (e) {
+      console.warn('hydrateForArticle failed', e)
+    }
+  },
+
+  refreshHistory: async () => {
+    const root = useArticleStore.getState().rootDir
+    if (!root) return
+    try {
+      const history = await listAnvilSessions(root)
+      set({ history, historyLoadedAt: Date.now() })
+    } catch (e) {
+      console.warn('refreshHistory failed', e)
+    }
+  },
+
+  loadSessionFromDisk: async (slug) => {
+    const root = useArticleStore.getState().rootDir
+    if (!root) return
+    try {
+      const dir = await ensureAnvilFolder(root)
+      const prior = await readAnvilSession(dir, slug)
+      if (!prior) return
+      // Mark stale unless this is the same article currently in the editor.
+      const currentSlug = useArticleStore.getState().current?.slug
+      let stale = currentSlug !== slug
+      if (!stale) {
+        const sha = await sha256Hex(useArticleStore.getState().currentText)
+        stale = sha !== prior.articleSha
+      }
+      set({
+        session: prior,
+        staleAgainstArticle: stale,
+        showSessionsList: false,
+        currentIndex: null,
+        thinking: '',
+      })
+    } catch (e) {
+      console.warn('loadSessionFromDisk failed', e)
+    }
+  },
+
+  setShowSessionsList: (v) => set({ showSessionsList: v }),
+
+  verifyClaim: async (claimId) => {
+    const s = get().session
+    if (!s) return
+    const config = useChatStore.getState().config
+    if (!config) return
+
+    // Find the claim and its paragraph.
+    let claimPara: import('../types').AnvilParagraph | undefined
+    for (const p of s.paragraphs) {
+      if (p.claims.some((c) => c.id === claimId)) { claimPara = p; break }
+    }
+    const claim = claimPara?.claims.find((c) => c.id === claimId)
+    if (!claim || !claimPara) return
+
+    // Mark pending.
+    let next = patchClaim(s, claimId, (c) => ({ ...c, verdict: 'pending' as const }))
+    set({ session: next })
+
+    const articleTitle = inferArticleTitle(s.paragraphs.map((p) => p.text))
+    const prompt = buildVerifierPrompt({ claim: claim.text, articleTitle })
+
+    let raw = ''
+    try {
+      await streamChat({
+        apiKey: config.apiKey,
+        model: s.verifierModel,
+        messages: [{ role: 'user', content: prompt }],
+        webSearch: true,
+        onTextDelta: (d) => { raw += d },
+      })
+    } catch (e) {
+      console.error('verifyClaim stream failed', e)
+      next = patchClaim(get().session!, claimId, (c) => ({
+        ...c,
+        verdict: 'inconclusive' as const,
+        explanation: `Verifier failed: ${(e as Error).message}`,
+      }))
+      set({ session: next })
+      await persistSession(next)
+      return
+    }
+
+    const parsed = parseVerifierResponse(raw)
+    next = patchClaim(get().session!, claimId, (c) => ({
+      ...c,
+      verdict: parsed.verdict,
+      confidence: parsed.confidence,
+      sources: parsed.sources,
+      explanation: parsed.explanation,
+    }))
+    set({ session: next })
+    await persistSession(next)
+  },
+
+  markClaimOk: async (claimId) => {
+    const s = get().session
+    if (!s) return
+    const next = patchClaim(s, claimId, (c) => ({
+      ...c,
+      verdict: 'ok' as const,
+      explanation: 'Marked OK manually by user (no web verification run).',
+      sources: [],
+    }))
+    set({ session: next })
+    await persistSession(next)
+  },
+
   rewriteSpan: async (originalSpan, userInstruction, contextParagraph) => {
     const config = useChatStore.getState().config
     const s = get().session
@@ -425,6 +592,20 @@ function patchParagraph(
   patcher: (p: AnvilParagraph) => AnvilParagraph,
 ): AnvilSession {
   const paragraphs = s.paragraphs.map((p) => (p.index === index ? patcher(p) : p))
+  const metrics = computeMetrics(paragraphs, s.metrics.costUsd)
+  return { ...s, paragraphs, metrics }
+}
+
+/** Locate a claim by id across all paragraphs and patch it. */
+function patchClaim(
+  s: AnvilSession,
+  claimId: string,
+  patcher: (c: import('../types').AnvilClaim) => import('../types').AnvilClaim,
+): AnvilSession {
+  const paragraphs = s.paragraphs.map((p) => {
+    if (!p.claims.some((c) => c.id === claimId)) return p
+    return { ...p, claims: p.claims.map((c) => (c.id === claimId ? patcher(c) : c)) }
+  })
   const metrics = computeMetrics(paragraphs, s.metrics.costUsd)
   return { ...s, paragraphs, metrics }
 }
@@ -496,13 +677,23 @@ async function runLoop(): Promise<void> {
             id: makeAnnotationId(para.index, n, a.span),
             decision: a.decision || 'pending',
           }))
+          const claimsWithIds = parsed.claims.map((c, n) => ({
+            ...c,
+            id: makeClaimId(para.index, n, c.text),
+          }))
           const next = patchParagraph(get().session!, para.index, (p) => ({
             ...p,
             rawAnalyst: raw,
             annotations: withIds,
             slop: parsed.slop,
             slopReason: parsed.slopReason,
-            claims: parsed.claims,
+            // Preserve any verified claim verdicts from a prior pass on same ids.
+            claims: claimsWithIds.map((c) => {
+              const old = p.claims.find((x) => x.id === c.id)
+              return old && (old.verdict === 'verified-true' || old.verdict === 'verified-false' || old.verdict === 'inconclusive')
+                ? { ...c, verdict: old.verdict, confidence: old.confidence, explanation: old.explanation, sources: old.sources }
+                : c
+            }),
             comprehension: parsed.comprehension,
           }))
           set({ session: next })
@@ -558,4 +749,12 @@ function makeAnnotationId(paragraphIndex: number, ordinal: number, span: string)
     h = (h * 31 + span.charCodeAt(i)) | 0
   }
   return `p${paragraphIndex}-a${ordinal}-${(h >>> 0).toString(36)}`
+}
+
+function makeClaimId(paragraphIndex: number, ordinal: number, text: string): string {
+  let h = 0
+  for (let i = 0; i < text.length; i++) {
+    h = (h * 31 + text.charCodeAt(i)) | 0
+  }
+  return `p${paragraphIndex}-c${ordinal}-${(h >>> 0).toString(36)}`
 }
