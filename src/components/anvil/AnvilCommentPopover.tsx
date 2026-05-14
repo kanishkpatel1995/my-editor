@@ -38,7 +38,16 @@ export function AnvilCommentPopover({ editor }: Props) {
   const [webResearching, setWebResearching] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifierResult | null>(null)
   const [verifying, setVerifying] = useState(false)
+  const [verifyStartedAt, setVerifyStartedAt] = useState<number | null>(null)
+  const [, forceTick] = useState(0)
   const popoverRef = useRef<HTMLDivElement>(null)
+
+  // 1s tick while verifying so the elapsed-time counter updates.
+  useEffect(() => {
+    if (!verifying) return
+    const id = window.setInterval(() => forceTick((n) => n + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [verifying])
 
   // Listen for strikethrough clicks dispatched by the Tiptap plugin.
   useEffect(() => {
@@ -54,6 +63,7 @@ export function AnvilCommentPopover({ editor }: Props) {
       setWebResearching(false)
       setVerifyResult(null)
       setVerifying(false)
+      setVerifyStartedAt(null)
     }
     window.addEventListener('anvil:annotation-click', onClick)
     return () => window.removeEventListener('anvil:annotation-click', onClick)
@@ -135,9 +145,13 @@ export function AnvilCommentPopover({ editor }: Props) {
     if (verifying) return
     setVerifying(true)
     setVerifyResult(null)
+    setVerifyStartedAt(Date.now())
     try {
       const articleTitle = session?.paragraphs[0]?.text.match(/^#\s+(.+?)\s*$/m)?.[1] || 'Untitled'
-      const result = await verifySpanAsClaim(annotation.span, articleTitle)
+      const result = await verifySpanAsClaim(annotation.span, articleTitle, (partial) => {
+        // Stream the verdict + sources progressively as the verifier emits them.
+        setVerifyResult(partial)
+      })
       setVerifyResult(result)
     } catch (e) {
       toast.error('Verification failed: ' + (e as Error).message)
@@ -145,6 +159,10 @@ export function AnvilCommentPopover({ editor }: Props) {
       setVerifying(false)
     }
   }
+
+  const verifyElapsedSec = verifyStartedAt && verifying
+    ? Math.floor((Date.now() - verifyStartedAt) / 1000)
+    : null
 
   const submitRewrite = async () => {
     if (!editor) return
@@ -212,7 +230,7 @@ export function AnvilCommentPopover({ editor }: Props) {
       {/* Structured verification result */}
       {(verifying || verifyResult) ? (
         <VerifierResultPanel
-          header="◌ Claim verification"
+          header={`◌ Claim verification${verifyElapsedSec != null ? ` · ${verifyElapsedSec}s` : ''}`}
           streaming={verifying}
           verdict={verifyResult?.verdict}
           confidence={verifyResult?.confidence}

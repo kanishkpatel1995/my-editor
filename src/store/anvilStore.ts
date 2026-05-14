@@ -102,8 +102,16 @@ interface AnvilStore {
   /** Verify an arbitrary span (e.g. a strikethrough) as if it were a claim:
    *  runs the structured verifier (VERDICT / CONFIDENCE / SOURCES) and returns
    *  the parsed result. Does NOT mutate the session (annotations don't become
-   *  claims) — the caller renders the result inline. */
-  verifySpanAsClaim: (span: string, articleTitle: string) => Promise<import('../lib/anvil-verifier').VerifierResult>
+   *  claims) — the caller renders the result inline.
+   *
+   *  `onPartial` (optional) is invoked on every text delta AFTER the VERDICT
+   *  line is parsed, so the popover can show the verdict + sources streaming
+   *  in real time instead of staring at a blank spinner for 10–25 s. */
+  verifySpanAsClaim: (
+    span: string,
+    articleTitle: string,
+    onPartial?: (partial: import('../lib/anvil-verifier').VerifierResult) => void,
+  ) => Promise<import('../lib/anvil-verifier').VerifierResult>
 }
 
 function emptySession(opts: {
@@ -520,13 +528,36 @@ export const useAnvilStore = create<AnvilStore>((set, get) => ({
     const prompt = buildVerifierPrompt({ claim: claim.text, articleTitle })
 
     let raw = ''
+    let hasSeenVerdict = false
     try {
       await streamChat({
         apiKey: config.apiKey,
         model: s.verifierModel,
         messages: [{ role: 'user', content: prompt }],
         webSearch: true,
-        onTextDelta: (d) => { raw += d },
+        onTextDelta: (d) => {
+          raw += d
+          // Patch the live claim with progressive verdict / sources so the
+          // popover shows real progress instead of a frozen spinner.
+          if (!hasSeenVerdict) {
+            if (/^VERDICT:\s*(TRUE|FALSE|INCONCLUSIVE)/im.test(raw)) {
+              hasSeenVerdict = true
+            } else {
+              return
+            }
+          }
+          try {
+            const partial = parseVerifierResponse(raw)
+            const next = patchClaim(get().session!, claimId, (c) => ({
+              ...c,
+              verdict: partial.verdict,
+              confidence: partial.confidence,
+              sources: partial.sources,
+              explanation: partial.explanation,
+            }))
+            set({ session: next })
+          } catch { /* tolerant */ }
+        },
       })
     } catch (e) {
       console.error('verifyClaim stream failed', e)
@@ -583,18 +614,32 @@ Output ONLY the research summary + sources. No preamble.`
     return buf.trim()
   },
 
-  verifySpanAsClaim: async (span, articleTitle) => {
+  verifySpanAsClaim: async (span, articleTitle, onPartial) => {
     const config = useChatStore.getState().config
     const s = get().session
     if (!config || !s) throw new Error('No active session/config')
     const prompt = buildVerifierPrompt({ claim: span, articleTitle })
     let raw = ''
+    let hasSeenVerdict = false
     await streamChat({
       apiKey: config.apiKey,
       model: s.verifierModel,
       messages: [{ role: 'user', content: prompt }],
       webSearch: true,
-      onTextDelta: (d) => { raw += d },
+      onTextDelta: (d) => {
+        raw += d
+        // Only call onPartial AFTER we've seen the VERDICT line, so the UI
+        // doesn't briefly flash "INCONCLUSIVE" (parser default) before the
+        // real verdict arrives.
+        if (!hasSeenVerdict) {
+          if (/^VERDICT:\s*(TRUE|FALSE|INCONCLUSIVE)/im.test(raw)) {
+            hasSeenVerdict = true
+          } else {
+            return
+          }
+        }
+        try { onPartial?.(parseVerifierResponse(raw)) } catch { /* tolerant */ }
+      },
     })
     return parseVerifierResponse(raw)
   },

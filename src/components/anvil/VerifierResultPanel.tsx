@@ -22,7 +22,9 @@ export function VerifierResultPanel({
 }: Props) {
   if (!verdict && !explanation && !streaming) return null
 
-  const v = streaming ? 'pending' : (verdict || 'pending')
+  // If the verdict has arrived (mid-stream), show it immediately — only fall
+  // back to `pending` when we genuinely don't have one yet.
+  const v = verdict || 'pending'
   const label = labelFor(v, confidence)
   const Icon = iconFor(v)
 
