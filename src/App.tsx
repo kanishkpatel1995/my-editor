@@ -15,6 +15,9 @@ import { transformForSubstack } from './lib/transforms/substack'
 import { transformForLinkedIn } from './lib/transforms/linkedin'
 import { useChatStore } from './store/chatStore'
 import { useArticleStore } from './store/articleStore'
+import { useAnvilStore } from './store/anvilStore'
+import { setAnvilDecorations, clearAnvilDecorations } from './lib/anvil-tiptap-decorations'
+import { AnvilCommentPopover } from './components/anvil/AnvilCommentPopover'
 import { copyImageNearArticle } from './lib/image-utils'
 import { stripBase64Images } from './lib/prompts'
 import type { ArticleRef, CompanionKind } from './types'
@@ -282,11 +285,47 @@ export default function App() {
     }
   }, [])
 
+  // Push ANVIL annotations into the editor as inline decorations whenever
+  // the session changes. Cleared automatically when no session is open.
+  useEffect(() => {
+    if (!editorInstance) return
+    const apply = (annotations: Array<{ id: string; span: string; decision: 'pending' | 'accepted' | 'rejected' }>) => {
+      if (annotations.length) setAnvilDecorations(editorInstance.view, annotations)
+      else clearAnvilDecorations(editorInstance.view)
+    }
+    const flatten = (s: ReturnType<typeof useAnvilStore.getState>['session']) =>
+      s ? s.paragraphs.flatMap((p) =>
+        p.annotations.map((a) => ({
+          id: a.id,
+          span: a.span,
+          decision: (a.decision || 'pending') as 'pending' | 'accepted' | 'rejected',
+        })),
+      ) : []
+    apply(flatten(useAnvilStore.getState().session))
+    const unsub = useAnvilStore.subscribe((s) => apply(flatten(s.session)))
+    return () => {
+      unsub()
+      clearAnvilDecorations(editorInstance.view)
+    }
+  }, [editorInstance])
+
+  const onToggleAnvil = useCallback(() => {
+    const anvil = useAnvilStore.getState()
+    if (!chatOpen) {
+      setChatOpen(true)
+      anvil.setActiveTab('anvil')
+      return
+    }
+    // Chat panel already open — flip between tabs.
+    anvil.setActiveTab(anvil.activeTab === 'anvil' ? 'chat' : 'anvil')
+  }, [chatOpen])
+
   useHotkeys({
     onOpen: handleOpen,
     onSave: handleSave,
     onCopy: () => copyForPlatform(theme === 'substack' ? 'substack' : 'linkedin'),
     onToggleChat: () => setChatOpen((v) => !v),
+    onToggleAnvil,
     onToggleMode: () => {
       const s = useChatStore.getState()
       if (!s.activeThreadId) return
@@ -378,6 +417,7 @@ export default function App() {
         onCopySubstack={() => copyForPlatform('substack')}
         onCopyLinkedIn={() => copyForPlatform('linkedin')}
         onToggleChat={() => setChatOpen((v) => !v)}
+        onToggleAnvil={onToggleAnvil}
         fileName={fileName}
         dirty={dirty}
         onPickWorkflow={pickWorkflowRoot}
@@ -416,6 +456,7 @@ export default function App() {
           onInsertImage={onInsertImage}
         />
       </div>
+      <AnvilCommentPopover editor={editorInstance} />
       <Toaster
         position="bottom-right"
         toastOptions={{

@@ -5,6 +5,7 @@ export interface HotkeyHandlers {
   onSave?: () => void
   onCopy?: () => void
   onToggleChat?: () => void
+  onToggleAnvil?: () => void
   onToggleMode?: () => void
   onStop?: () => void
 }
@@ -26,6 +27,9 @@ export function useHotkeys(h: HotkeyHandlers) {
       } else if (meta && e.key.toLowerCase() === 'j' && h.onToggleChat) {
         e.preventDefault()
         h.onToggleChat()
+      } else if (meta && e.key.toLowerCase() === 'l' && h.onToggleAnvil) {
+        e.preventDefault()
+        h.onToggleAnvil()
       } else if (meta && e.shiftKey && e.key.toLowerCase() === 'i' && h.onToggleMode) {
         e.preventDefault()
         h.onToggleMode()

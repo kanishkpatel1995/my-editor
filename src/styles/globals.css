@@ -164,6 +164,21 @@ body {
   box-shadow: inset 0 0 0 1.5px var(--color-vermilion);
 }
 
+/* ───── ANVIL inline strikethrough on the editor canvas ───── */
+.anvil-strike {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-vermilion);
+  text-decoration-thickness: 2px;
+  background: linear-gradient(transparent 0%, var(--color-vermilion-tint) 30%, var(--color-vermilion-tint) 70%, transparent 100%);
+  cursor: pointer;
+  transition: background 120ms ease-out;
+  border-radius: 1px;
+  padding: 0 1px;
+}
+.anvil-strike:hover {
+  background: var(--color-vermilion-tint);
+}
+
 /* ──────────────────────────────────────────────────────────────────────
    Resize gutters — 6 px hit zones, idle-invisible.
    Hover/focus reveals a vermilion hairline + two `··` grip dots.

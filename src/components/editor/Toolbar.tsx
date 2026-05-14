@@ -2,7 +2,7 @@ import {
   Bold, Italic, Strikethrough, Code, Link as LinkIcon,
   Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Minus, Image as ImageIcon,
-  FolderOpen, Save, MessageCircle, ChevronDown,
+  FolderOpen, Save, MessageCircle, ChevronDown, Hammer,
 } from 'lucide-react'
 import type { Editor } from '@tiptap/react'
 import type { ArticleRef, CompanionKind, Theme } from '../../types'
@@ -21,6 +21,7 @@ interface ToolbarProps {
   onCopySubstack: () => void
   onCopyLinkedIn: () => void
   onToggleChat: () => void
+  onToggleAnvil: () => void
   fileName: string | null
   dirty: boolean
   /** Workflow integrations. If absent, the chip + companions menu still render but with limited actions. */
@@ -153,6 +154,14 @@ export function Toolbar(props: ToolbarProps) {
           Copy for {theme === 'substack' ? 'Substack' : 'LinkedIn'}
         </Button>
 
+        <IconButton
+          size="sm"
+          icon={<Hammer size={14} />}
+          label="Toggle ANVIL"
+          title="Toggle ANVIL — adversarial review (⌘L)"
+          onClick={props.onToggleAnvil}
+          className="text-vermilion hover:bg-vermilion-tint"
+        />
         <IconButton
           size="sm"
           icon={<MessageCircle size={14} />}

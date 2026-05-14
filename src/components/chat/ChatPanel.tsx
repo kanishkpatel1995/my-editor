@@ -12,6 +12,8 @@ import { IconButton } from '../ui/IconButton'
 import { ResizeGutter } from '../ui/ResizeGutter'
 import { useResizable } from '../../hooks/useResizable'
 import { CHAT_HISTORY_PATH, CHAT_HISTORY_FOLDER_NAME } from '../../lib/workflow'
+import { useAnvilStore } from '../../store/anvilStore'
+import { AnvilPanel } from '../anvil/AnvilPanel'
 
 const PANEL_DEFAULT = 440
 const PANEL_MIN = 320
@@ -92,6 +94,8 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
   }
 
   const active = threads.find((t) => t.id === activeThreadId) || null
+  const activeTab = useAnvilStore((s) => s.activeTab)
+  const setActiveTab = useAnvilStore((s) => s.setActiveTab)
 
   if (!open) return null
 
@@ -102,6 +106,66 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
         className="thin-scroll animate-slide-in-right flex h-full flex-shrink-0 flex-col border-l border-rule bg-paper"
         style={{ width: widthResizer.size }}
       >
+      {/* Tab pair — Chat / ANVIL share the rail. */}
+      <div className="flex items-center gap-px border-b border-rule bg-rule-soft px-2.5 pt-2 pb-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab('chat')}
+          className={
+            'flex h-7 items-center gap-1 border-b-0 border border-rule-soft px-2 font-mono text-[11px] tracking-tight transition-colors ' +
+            (activeTab === 'chat'
+              ? 'bg-paper text-ink border-rule'
+              : 'bg-paper-2 text-mute hover:text-ink')
+          }
+          title="Chat with a model"
+        >
+          💬 Chat
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('anvil')}
+          className={
+            'flex h-7 items-center gap-1 border-b-0 border border-rule-soft px-2 font-mono text-[11px] tracking-tight transition-colors ' +
+            (activeTab === 'anvil'
+              ? 'bg-paper text-vermilion border-vermilion'
+              : 'bg-paper-2 text-mute hover:text-vermilion')
+          }
+          title="Adversarial review of the open article (ANVIL)"
+        >
+          ◾ ANVIL
+        </button>
+        <div className="ml-auto py-1">
+          <IconButton size="sm" icon={<X size={12} />} label="Close" title="Close (⌘J)" onClick={onClose} />
+        </div>
+      </div>
+
+      {activeTab === 'anvil' ? (
+        <AnvilPanel />
+      ) : (
+        <ChatTabBody
+          showList={showList} setShowList={setShowList}
+          rootDir={rootDir} pickFolder={pickFolder}
+          loadThreads={loadThreads} refreshModels={refreshModels}
+          active={active} threads={threads}
+          newThread={newThread} selectThread={selectThread}
+          config={config}
+          onInsertText={onInsertText} onInsertImage={onInsertImage}
+        />
+      )}
+      </aside>
+    </div>
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ChatTabBody(props: any) {
+  const {
+    showList, setShowList, rootDir, pickFolder, loadThreads, refreshModels,
+    active, threads, newThread, selectThread, config,
+    onInsertText, onInsertImage,
+  } = props
+  return (
+    <>
       {/* Header */}
       <div className="flex items-center gap-1.5 border-b border-rule bg-paper px-2.5 py-2">
         <Button
@@ -166,7 +230,6 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
           {active?.title || (rootDir ? `${rootDir.name} · no thread` : 'no folder')}
         </div>
 
-        <IconButton size="sm" icon={<X size={12} />} label="Close" title="Close (⌘J)" onClick={onClose} />
       </div>
 
       {/* Wrong-folder warning */}
@@ -236,8 +299,7 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
           />
         )}
       </div>
-      </aside>
-    </div>
+    </>
   )
 }
 

@@ -5,6 +5,7 @@ import Image from '@tiptap/extension-image'
 import { Markdown } from 'tiptap-markdown'
 import { useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import type { Theme } from '../../types'
+import { AnvilDecorationsExtension } from '../../lib/anvil-tiptap-decorations'
 
 export interface EditorHandle {
   getMarkdown: () => string
@@ -58,6 +59,7 @@ export const MarkdownEditor = forwardRef<EditorHandle, EditorProps>(function Mar
         HTMLAttributes: { rel: 'noopener noreferrer' },
       }),
       Image.configure({ inline: false, allowBase64: true }),
+      AnvilDecorationsExtension,
       Markdown.configure({
         html: false,
         tightLists: true,

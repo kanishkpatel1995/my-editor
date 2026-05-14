@@ -16,6 +16,10 @@ export function loadConfig(): { config: Config | null; missing: string[] } {
       chatFolderPath: env.VITE_CHAT_FOLDER || '',
       modelListLimit: Number(env.VITE_MODEL_LIST_LIMIT) || 200,
       threadCostWarnUsd: Number(env.VITE_THREAD_COST_WARN_USD) || 1.0,
+      // ANVIL defaults — reasoning analyst, cheap online-verifier, snappy explainer.
+      anvilAnalystModel:   env.VITE_ANVIL_ANALYST_MODEL   || 'deepseek/deepseek-r1',
+      anvilVerifierModel:  env.VITE_ANVIL_VERIFIER_MODEL  || 'qwen/qwen3.5-flash-02-23',
+      anvilExplainerModel: env.VITE_ANVIL_EXPLAINER_MODEL || 'anthropic/claude-haiku-4.5',
     },
     missing: [],
   }
