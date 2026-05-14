@@ -3,7 +3,7 @@
 > A local, file-system-first markdown editor for AI-assisted writing — with an
 > adversarial review layer that pushes back instead of agreeing with you.
 
-![license: MIT](https://img.shields.io/badge/license-MIT-black) ![status: alpha](https://img.shields.io/badge/status-alpha-vermilion) ![stack: React · Vite · TipTap](https://img.shields.io/badge/stack-React%20·%20Vite%20·%20TipTap-paper)
+![license: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-black) ![status: alpha](https://img.shields.io/badge/status-alpha-vermilion) ![stack: React · Vite · TipTap](https://img.shields.io/badge/stack-React%20·%20Vite%20·%20TipTap-paper)
 
 Markdown is the source of truth. Your articles live as `.md` files on disk —
 not in a database, not in someone's cloud, not behind a sign-in. Chat history
@@ -347,4 +347,26 @@ is the most welcome.
 
 ## License
 
-[MIT](./LICENSE). Use it however you like.
+[**GNU AGPL-3.0-only**](./LICENSE).
+
+In plain English:
+
+- **Use it freely** for personal, educational, research, or internal work.
+  Run it, modify it, share it.
+- **If you modify it AND offer the result as a network service** (a
+  SaaS, a hosted app, anything someone reaches over a network), you must
+  release your modifications under the AGPL-3.0 as well. You can't take
+  the code, change it, and run a closed-source service on top of it.
+- **Want to use it commercially without AGPL obligations?** Open an issue
+  on the repo to discuss a commercial license. Dual-licensing is on the
+  table for genuine use cases.
+
+The reasoning: the design ideas in this project — the Foundry aesthetic,
+the ANVIL adversarial-review framing, the Socratic comprehension flow —
+are the result of real research synthesis and real iteration. AGPL keeps
+the implementation open while making sure improvements made by anyone
+running it as a service flow back to the community.
+
+> AGPL-3.0 is a free-software license recognised by the OSI and FSF. It is
+> what MongoDB used until 2018, what Sentry used until 2019, and what
+> Bitwarden, GitLab Community Edition, and Mastodon still use today.
