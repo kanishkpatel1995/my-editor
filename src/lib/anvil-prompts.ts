@@ -193,25 +193,46 @@ Output ONLY the explanation. No preamble.`
 }
 
 /**
- * Verifier — checks a single flagged claim with web search.
- * v1.1: invoke via OpenRouter's `:online` model suffix.
+ * Verifier — checks a single flagged claim (or arbitrary span) with web search.
+ * Invoked via OpenRouter's `:online` suffix for live retrieval.
+ *
+ * The structured output is parsed by `parseVerifierResponse` in
+ * `anvil-verifier.ts`. Format is strict so the parser doesn't have to
+ * heuristically guess.
  */
 export function buildVerifierPrompt(opts: { claim: string; articleTitle: string }): string {
-  return `You are a fact-checker. Verify ONE claim from a technical article.
+  return `You are a fact-checker. Verify ONE claim from a technical article using
+live web search. Be honest about uncertainty — INCONCLUSIVE is a valid verdict
+when the web doesn't have clean evidence.
 
 Article title (for context only): "${opts.articleTitle}"
 
 Claim to verify:
 "${opts.claim}"
 
-Search the web. Then respond with EXACTLY this format on three lines:
+Search the web. Then respond with EXACTLY this format. Do not deviate.
 
 VERDICT: <one of: TRUE, FALSE, INCONCLUSIVE>
 CONFIDENCE: <one of: LOW, MEDIUM, HIGH>
-SOURCES: <comma-separated list of URLs that informed your verdict; or NONE>
+EXPLANATION: <one to three sentences. Cite specific numbers, dates,
+  attributions, or quotes when relevant. State what makes you confident
+  or uncertain.>
+SOURCES:
+- <url1> | <page or paper title> | <one-sentence note on what this source establishes>
+- <url2> | <title> | <note>
+- ... up to 5 sources total. If you found none, write a single line: "- NONE"
 
-Then on a 4th line, write ONE sentence explaining the verdict. Cite specific
-numbers, dates, or facts when relevant.
+Strict rules:
+  - Every source line MUST start with "- " and use the literal pipe ("|")
+    as separator. If a title contains a pipe, replace with a comma.
+  - URLs must be fully qualified (https://...). No bare domains, no
+    markdown links.
+  - Prefer primary sources: peer-reviewed papers, official model cards,
+    canonical documentation, first-party blog posts. Avoid SEO-spam
+    aggregators, AI-generated content farms.
+  - If you can't find supportable evidence either way, VERDICT is
+    INCONCLUSIVE and SOURCES is "- NONE" — do not bluff.
 
-Output NOTHING else. No preamble. No "I'll check that for you."`
+Output NOTHING outside the four labelled sections. No preamble. No
+"Here's what I found:". Start directly with "VERDICT:".`
 }

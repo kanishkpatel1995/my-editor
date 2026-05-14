@@ -117,6 +117,13 @@ export interface AnvilAnnotation {
   unanchored?: boolean
 }
 
+/** A source citation from the web-search verifier. */
+export interface VerifierSource {
+  url: string
+  title?: string
+  snippet?: string
+}
+
 export interface AnvilClaim {
   /** Stable id: paragraphIndex + ordinal + hash(text). */
   id: string
@@ -124,10 +131,10 @@ export interface AnvilClaim {
   /** Verifier verdict; `pending` while the web-search call is in flight. */
   verdict: 'ok' | 'verify' | 'verified-true' | 'verified-false' | 'inconclusive' | 'pending'
   confidence?: 'low' | 'medium' | 'high'
-  /** One-sentence verdict explanation from the verifier. */
+  /** Multi-sentence verdict explanation from the verifier. */
   explanation?: string
-  /** Citation URLs returned by the verifier model. */
-  sources?: string[]
+  /** Citations returned by the verifier model. */
+  sources?: VerifierSource[]
 }
 
 export type AnvilCompState =

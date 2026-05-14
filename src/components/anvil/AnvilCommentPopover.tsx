@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, X, Wand2, Sparkles, Undo2, Search } from 'lucide-react'
+import { Check, X, Wand2, Sparkles, Undo2, Search, ShieldCheck } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import type { Editor as TipTapEditor } from '@tiptap/react'
 import { replaceSpan } from '../../lib/anvil-tiptap-decorations'
 import type { AnvilAnnotationClickDetail } from '../../lib/anvil-tiptap-decorations'
 import { toast } from 'sonner'
+import { VerifierResultPanel } from './VerifierResultPanel'
+import type { VerifierResult } from '../../lib/anvil-verifier'
 
 interface Props {
   editor: TipTapEditor | null
@@ -25,6 +27,7 @@ export function AnvilCommentPopover({ editor }: Props) {
   const setDecision = useAnvilStore((s) => s.setAnnotationDecision)
   const rewriteSpan = useAnvilStore((s) => s.rewriteSpan)
   const searchWebForSpan = useAnvilStore((s) => s.searchWebForSpan)
+  const verifySpanAsClaim = useAnvilStore((s) => s.verifySpanAsClaim)
 
   const [activeId, setActiveId] = useState<string | null>(null)
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -33,6 +36,8 @@ export function AnvilCommentPopover({ editor }: Props) {
   const [rewriting, setRewriting] = useState(false)
   const [webResearchBuf, setWebResearchBuf] = useState<string>('')
   const [webResearching, setWebResearching] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<VerifierResult | null>(null)
+  const [verifying, setVerifying] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   // Listen for strikethrough clicks dispatched by the Tiptap plugin.
@@ -47,6 +52,8 @@ export function AnvilCommentPopover({ editor }: Props) {
       setRewriteInstruction('')
       setWebResearchBuf('')
       setWebResearching(false)
+      setVerifyResult(null)
+      setVerifying(false)
     }
     window.addEventListener('anvil:annotation-click', onClick)
     return () => window.removeEventListener('anvil:annotation-click', onClick)
@@ -124,6 +131,21 @@ export function AnvilCommentPopover({ editor }: Props) {
     }
   }
 
+  const verifyAsClaim = async () => {
+    if (verifying) return
+    setVerifying(true)
+    setVerifyResult(null)
+    try {
+      const articleTitle = session?.paragraphs[0]?.text.match(/^#\s+(.+?)\s*$/m)?.[1] || 'Untitled'
+      const result = await verifySpanAsClaim(annotation.span, articleTitle)
+      setVerifyResult(result)
+    } catch (e) {
+      toast.error('Verification failed: ' + (e as Error).message)
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const submitRewrite = async () => {
     if (!editor) return
     if (!rewriteInstruction.trim()) return
@@ -187,7 +209,19 @@ export function AnvilCommentPopover({ editor }: Props) {
         ) : null}
       </div>
 
-      {/* Web research output, only shown when the user clicked "Search web". */}
+      {/* Structured verification result */}
+      {(verifying || verifyResult) ? (
+        <VerifierResultPanel
+          header="◌ Claim verification"
+          streaming={verifying}
+          verdict={verifyResult?.verdict}
+          confidence={verifyResult?.confidence}
+          explanation={verifyResult?.explanation}
+          sources={verifyResult?.sources}
+        />
+      ) : null}
+
+      {/* Free-form web research output, only when user clicked "Search web". */}
       {(webResearching || webResearchBuf) ? (
         <div className="border-t border-rule-soft px-3 py-2 bg-paper-2">
           <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.12em] text-goldenrod">
@@ -233,12 +267,22 @@ export function AnvilCommentPopover({ editor }: Props) {
           <Button
             variant="ghost"
             size="sm"
+            leading={<ShieldCheck size={11} />}
+            onClick={() => void verifyAsClaim()}
+            disabled={verifying}
+            title="Treat this span as a factual claim and run the structured web verifier (verdict + sources)"
+          >
+            {verifying ? 'Verifying…' : 'Verify claim'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             leading={<Search size={11} />}
             onClick={() => void searchWeb()}
             disabled={webResearching}
-            title="Get web-search context to help you decide (uses the ANVIL verifier model)"
+            title="Open-ended web research about this span (uses the ANVIL verifier model)"
           >
-            {webResearching ? 'Searching…' : 'Search web'}
+            {webResearching ? 'Searching…' : 'Research'}
           </Button>
         </div>
       ) : (

@@ -98,6 +98,12 @@ interface AnvilStore {
    *  strikethrough popover when the user wants more info before deciding).
    *  Returns the streamed research text; caller renders it. */
   searchWebForSpan: (span: string, contextParagraph: string, onDelta: (s: string) => void) => Promise<string>
+
+  /** Verify an arbitrary span (e.g. a strikethrough) as if it were a claim:
+   *  runs the structured verifier (VERDICT / CONFIDENCE / SOURCES) and returns
+   *  the parsed result. Does NOT mutate the session (annotations don't become
+   *  claims) — the caller renders the result inline. */
+  verifySpanAsClaim: (span: string, articleTitle: string) => Promise<import('../lib/anvil-verifier').VerifierResult>
 }
 
 function emptySession(opts: {
@@ -575,6 +581,22 @@ Output ONLY the research summary + sources. No preamble.`
       onTextDelta: (d) => { buf += d; onDelta(d) },
     })
     return buf.trim()
+  },
+
+  verifySpanAsClaim: async (span, articleTitle) => {
+    const config = useChatStore.getState().config
+    const s = get().session
+    if (!config || !s) throw new Error('No active session/config')
+    const prompt = buildVerifierPrompt({ claim: span, articleTitle })
+    let raw = ''
+    await streamChat({
+      apiKey: config.apiKey,
+      model: s.verifierModel,
+      messages: [{ role: 'user', content: prompt }],
+      webSearch: true,
+      onTextDelta: (d) => { raw += d },
+    })
+    return parseVerifierResponse(raw)
   },
 
   markClaimOk: async (claimId) => {

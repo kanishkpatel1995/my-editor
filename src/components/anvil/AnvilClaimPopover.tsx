@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, Check, X, ExternalLink, AlertTriangle } from 'lucide-react'
+import { Search, Check, X, AlertTriangle } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import type { AnvilAnnotationClickDetail } from '../../lib/anvil-tiptap-decorations'
+import { VerifierResultPanel } from './VerifierResultPanel'
 
 /**
  * Floating popover anchored to a clicked ANVIL claim decoration. Lets the
@@ -65,17 +66,6 @@ export function AnvilClaimPopover() {
   const left = Math.max(8, Math.min(anchor.x, window.innerWidth - POPOVER_W - 8))
   const top = Math.min(anchor.y, window.innerHeight - 320)
 
-  const verdictLabel = (() => {
-    switch (claim.verdict) {
-      case 'verified-true':  return { text: 'TRUE',         tone: 'text-moss border-moss bg-paper-2' }
-      case 'verified-false': return { text: 'FALSE',        tone: 'text-vermilion border-vermilion bg-vermilion-tint' }
-      case 'inconclusive':   return { text: 'INCONCLUSIVE', tone: 'text-goldenrod border-goldenrod bg-paper-2' }
-      case 'ok':             return { text: 'OK · manual',  tone: 'text-moss border-moss bg-paper-2' }
-      case 'pending':        return { text: 'verifying…',   tone: 'text-goldenrod border-goldenrod bg-paper-2 animate-pulse' }
-      case 'verify':
-      default:               return { text: 'pending verify', tone: 'text-mute border-rule-soft bg-paper-2' }
-    }
-  })()
 
   return (
     <div
@@ -98,38 +88,17 @@ export function AnvilClaimPopover() {
 
       <div className="px-3 py-2">
         <div className="text-[13px] leading-snug text-ink">&ldquo;{claim.text}&rdquo;</div>
-        <div className={'mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-tight ' + verdictLabel.tone}>
-          {verdictLabel.text}
-          {claim.confidence ? <span className="text-mute"> · {claim.confidence}</span> : null}
-        </div>
-
-        {wasVerified && claim.explanation ? (
-          <div className="mt-2 border-l-2 border-rule-soft pl-2 text-[12.5px] leading-snug text-ink-soft">
-            {claim.explanation}
-          </div>
-        ) : null}
-
-        {wasVerified && claim.sources && claim.sources.length ? (
-          <div className="mt-2">
-            <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-mute">Sources</div>
-            <ul className="mt-1 space-y-0.5">
-              {claim.sources.map((url, i) => (
-                <li key={i}>
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center gap-1 text-[11.5px] text-vermilion hover:underline"
-                  >
-                    <ExternalLink size={9} />
-                    <span className="truncate max-w-[34ch]">{url}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
       </div>
+
+      {(isVerifying || wasVerified) ? (
+        <VerifierResultPanel
+          verdict={claim.verdict === 'verify' ? 'pending' : claim.verdict}
+          confidence={claim.confidence}
+          explanation={claim.explanation}
+          sources={claim.sources}
+          streaming={isVerifying}
+        />
+      ) : null}
 
       <div className="flex items-center gap-1 border-t border-rule-soft px-2 py-1.5">
         <Button

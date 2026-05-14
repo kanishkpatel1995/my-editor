@@ -76,7 +76,13 @@ export function serializeAnvilSession(s: AnvilSession): string {
                 : c.verdict === 'ok' ? '[ok]'
                 : c.verdict === 'verify' ? '[verify]'
                 : '[pending]'
-        const src = c.sources?.length ? `  (${c.sources.join(', ')})` : ''
+        const src = c.sources?.length
+          ? '\n  ' + c.sources.map((s) =>
+              s.title || s.snippet
+                ? `  - ${s.url} | ${s.title || ''}${s.snippet ? ` — ${s.snippet}` : ''}`
+                : `  - ${s.url}`,
+            ).join('\n  ')
+          : ''
         parts.push(`- ${c.text} → ${v}${src}\n`)
       }
     }
