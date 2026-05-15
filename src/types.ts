@@ -150,12 +150,15 @@ export interface AnvilComprehension {
   /** When the analyst says the paragraph is transitional / structural and no
    *  question is warranted. */
   isTransitional: boolean
-  /** User's typed answer to the Socratic follow-up, if they engaged. */
+  /** User's typed answer to the Socratic follow-up, if they engaged.
+   *  Reserved for the Socratic flow, currently disabled in UI. */
   socraticAnswer?: string
-  /** Streamed Socratic-followup question. */
+  /** Streamed Socratic-followup question. Reserved. */
   socraticFollowup?: string
-  /** Streamed full explanation, only when the user clicked 'explain'. */
+  /** Streamed concept explanation that fires when user clicks 'No'. */
   explanation?: string
+  /** Web sources cited alongside the explanation. */
+  explanationSources?: VerifierSource[]
 }
 
 export interface AnvilParagraph {

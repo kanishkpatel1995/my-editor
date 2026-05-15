@@ -6,9 +6,9 @@ import { streamChat } from '../lib/openrouter'
 import { segmentArticle } from '../lib/anvil-segmenter'
 import {
   buildAnalystPrompt, buildSocraticFollowupPrompt, buildExplainerPrompt,
-  buildVerifierPrompt,
+  buildVerifierPrompt, buildEducationalExplainerPrompt,
 } from '../lib/anvil-prompts'
-import { parseVerifierResponse } from '../lib/anvil-verifier'
+import { parseVerifierResponse, parseEducationalExplainerResponse } from '../lib/anvil-verifier'
 import { parseAnalystOutput } from '../lib/anvil-parser'
 import {
   ensureAnvilFolder, sha256Hex, writeAnvilSession, readAnvilSession, computeMetrics,
@@ -297,40 +297,67 @@ export const useAnvilStore = create<AnvilStore>((set, get) => ({
     const p = s.paragraphs.find((x) => x.index === paragraphIndex)
     if (!p?.comprehension) return
 
-    // Fire Socratic follow-up.
-    const prompt = buildSocraticFollowupPrompt({
+    // 1. Immediately flip the state so the UI shows "explaining…" feedback
+    //    even before the model returns its first token.
+    let next = patchParagraph(s, paragraphIndex, (pp) => ({
+      ...pp,
+      comprehension: pp.comprehension
+        ? {
+            ...pp.comprehension,
+            state: 'deferred-to-explain' as AnvilCompState,
+            explanation: '',
+            explanationSources: [],
+          }
+        : pp.comprehension,
+    }))
+    set({ session: next })
+
+    // 2. Fire the educational explainer with web search enabled. We use the
+    //    verifier model (`:online`-capable) because it already does live
+    //    retrieval reliably. Stream both EXPLANATION and SOURCES into the
+    //    comprehension state as they arrive.
+    const config = useChatStore.getState().config
+    if (!config) return
+    const prompt = buildEducationalExplainerPrompt({
       paragraphText: p.text,
       comprehensionQuestion: p.comprehension.question,
     })
-    const config = useChatStore.getState().config
-    if (!config) return
-    let buf = ''
+    let raw = ''
+    let hasSeenExplanation = false
     try {
       await streamChat({
         apiKey: config.apiKey,
-        model: s.explainerModel,
+        model: s.verifierModel,
         messages: [{ role: 'user', content: prompt }],
+        webSearch: true,
         onTextDelta: (delta) => {
-          buf += delta
-          const next = patchParagraph(get().session!, paragraphIndex, (pp) => ({
-            ...pp,
-            comprehension: pp.comprehension
-              ? { ...pp.comprehension, socraticFollowup: buf }
-              : pp.comprehension,
-          }))
-          set({ session: next })
+          raw += delta
+          // Only emit partials once we've seen the EXPLANATION: header so the
+          // UI doesn't briefly render an empty parse.
+          if (!hasSeenExplanation) {
+            if (/^EXPLANATION:/im.test(raw)) hasSeenExplanation = true
+            else return
+          }
+          try {
+            const parsed = parseEducationalExplainerResponse(raw)
+            const upd = patchParagraph(get().session!, paragraphIndex, (pp) => ({
+              ...pp,
+              comprehension: pp.comprehension
+                ? {
+                    ...pp.comprehension,
+                    explanation: parsed.explanation,
+                    explanationSources: parsed.sources,
+                  }
+                : pp.comprehension,
+            }))
+            set({ session: upd })
+          } catch { /* tolerant */ }
         },
       })
-      const final = patchParagraph(get().session!, paragraphIndex, (pp) => ({
-        ...pp,
-        comprehension: pp.comprehension
-          ? { ...pp.comprehension, socraticFollowup: buf.trim() }
-          : pp.comprehension,
-      }))
-      set({ session: final })
+      const final = get().session!
       await persistSession(final)
     } catch (e) {
-      console.error('socratic followup failed', e)
+      console.error('educational explainer failed', e)
     }
   },
 

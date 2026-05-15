@@ -48,6 +48,25 @@ export function parseVerifierResponse(text: string): VerifierResult {
   return { verdict, confidence, sources, explanation }
 }
 
+/**
+ * Parses the educational-explainer response (no VERDICT, just EXPLANATION +
+ * SOURCES) into the same shape. Tolerant of partial streamed input so the
+ * UI can render progressively.
+ */
+export interface EducationalExplainerResult {
+  explanation: string
+  sources: VerifierSource[]
+}
+
+export function parseEducationalExplainerResponse(text: string): EducationalExplainerResult {
+  // Pull EXPLANATION: <body> up to the SOURCES: header (or end of text)
+  const m = text.match(/^EXPLANATION:\s*([\s\S]*?)(?=^SOURCES:|$)/im)
+  const explanation = m
+    ? m[1].trim()
+    : text.split(/^SOURCES:/im)[0].replace(/^EXPLANATION:\s*/i, '').trim()
+  return { explanation, sources: parseSources(text) }
+}
+
 function parseSources(text: string): VerifierSource[] {
   const idx = text.search(/^SOURCES:/im)
   if (idx === -1) return []

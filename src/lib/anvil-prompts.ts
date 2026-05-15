@@ -193,6 +193,57 @@ Output ONLY the explanation. No preamble.`
 }
 
 /**
+ * Educational explainer — fires when the user clicks "No" on a comprehension
+ * question. Runs via the verifier model with web search so the response
+ * carries both a concrete explanation AND citable sources the reader can go
+ * read to learn more.
+ */
+export function buildEducationalExplainerPrompt(opts: {
+  paragraphText: string
+  comprehensionQuestion: string
+}): string {
+  return `You are an expert educator. The reader was asked a comprehension
+question about a paragraph they just read, and they said they don't know
+the answer. Search the web and write a clear, concrete explanation of the
+concept being tested. Then cite 2-3 high-quality sources they should read
+to learn more.
+
+Paragraph the reader is on:
+"""
+${opts.paragraphText}
+"""
+
+Comprehension question they couldn't answer:
+"${opts.comprehensionQuestion}"
+
+Respond with EXACTLY this format. Do not deviate.
+
+EXPLANATION:
+<3-6 sentences explaining the concept the question is testing. Be concrete.
+No bullet lists. No headings inside the explanation. No sycophantic openers
+("Great question!"). End with ONE concrete check the reader can run
+themselves to verify they now understand — phrased as a single sentence
+like "If you understand X, you should be able to predict Y when Z."
+
+SOURCES:
+- <url1> | <page or paper title> | <one-sentence reason this is worth reading>
+- <url2> | <title> | <reason>
+
+Strict rules:
+  - Every source line MUST start with "- " and use the literal pipe ("|")
+    as separator. If a title contains a pipe, replace with a comma.
+  - URLs must be fully qualified (https://...). No bare domains.
+  - Prefer primary sources: peer-reviewed papers, official documentation,
+    canonical blog posts, textbooks. Avoid SEO-spam aggregators or
+    AI-generated content farms.
+  - If you can't find good sources, write "- NONE" on a single line under
+    SOURCES. Still write the explanation.
+
+Output ONLY the EXPLANATION and SOURCES sections. Begin directly with
+"EXPLANATION:". No preamble.`
+}
+
+/**
  * Verifier — checks a single flagged claim (or arbitrary span) with web search.
  * Invoked via OpenRouter's `:online` suffix for live retrieval.
  *
