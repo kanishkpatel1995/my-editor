@@ -195,20 +195,25 @@ Output ONLY the explanation. No preamble.`
 /**
  * Educational explainer — fires when the user clicks "No" on a comprehension
  * question. Runs via the verifier model with web search so the response
- * carries both a concrete explanation AND citable sources the reader can go
- * read to learn more.
+ * carries both a plain-English explanation AND citable sources the reader
+ * can go read to learn more.
+ *
+ * Prompt design is opinionated about register: the reader is smart but
+ * unfamiliar with this specific concept. The goal is to make them think
+ * "oh, that's cool" — not to make them feel like they're reading a
+ * journal article. Explicit anti-patterns are named so the model can't
+ * hide behind generic abstraction.
  */
 export function buildEducationalExplainerPrompt(opts: {
   paragraphText: string
   comprehensionQuestion: string
 }): string {
-  return `You are an expert educator. The reader was asked a comprehension
-question about a paragraph they just read, and they said they don't know
-the answer. Search the web and write a clear, concrete explanation of the
-concept being tested. Then cite 2-3 high-quality sources they should read
-to learn more.
+  return `You're explaining a concept to a smart friend who doesn't happen
+to know this corner of the field yet. They're reading an article that
+covers it, hit a comprehension question, and clicked "No". Your job: make
+them GET IT, in plain English, with no academic register.
 
-Paragraph the reader is on:
+Paragraph they were reading:
 """
 ${opts.paragraphText}
 """
@@ -219,28 +224,74 @@ Comprehension question they couldn't answer:
 Respond with EXACTLY this format. Do not deviate.
 
 EXPLANATION:
-<3-6 sentences explaining the concept the question is testing. Be concrete.
-No bullet lists. No headings inside the explanation. No sycophantic openers
-("Great question!"). End with ONE concrete check the reader can run
-themselves to verify they now understand — phrased as a single sentence
-like "If you understand X, you should be able to predict Y when Z."
+<A plain-English explanation of the concept the question is testing. Be
+specific and concrete — pick an example over a generalisation every time.>
+
+STYLE RULES (the model that wrote the article was probably bad at these;
+you have to be good at them):
+
+  • SHORT SENTENCES. Aim for 12-18 words per sentence on average. Mix
+    in some shorter ones for rhythm. Long sentences hide thinking.
+  • ONE IDEA PER SENTENCE. If you find yourself using "and" to staple
+    two ideas together, split the sentence.
+  • ACTIVE VOICE. "The harness catches errors" — not "errors are caught
+    by the harness". "Standardisation makes things portable" — not
+    "portability is enabled by standardisation".
+  • CONCRETE EXAMPLES OR ANALOGIES. When you introduce an abstract idea,
+    immediately make it concrete. "Think of a harness like the scaffolding
+    around a building — you don't see it in the final photo, but it's
+    what made construction possible."
+  • DEFINE JARGON INLINE. The first time you use a technical term, give
+    a tiny gloss in parentheses. "...a sandbox (an isolated environment
+    where the agent can run code without breaking the real system)..."
+  • CONVERSATIONAL. "Here's what's actually going on" is fine.
+    Contractions are fine ("it's", "you'll"). Direct address is fine
+    ("you").
+
+EXPLICIT ANTI-PATTERNS (don't do these):
+
+  ✗ Academic abstraction: "the emergence of a true X discipline",
+    "ad-hoc creation to routine production", "scientific foundations
+    and standardized practices". Nobody talks like this.
+  ✗ Nominalisations — verbs hidden as nouns: "the standardisation of
+    components enables..." → write "standardising the components lets you...".
+  ✗ Vague comparatives without grounding: "more reliable", "better
+    composed", "improved performance". Say WHAT it's more reliable than,
+    and HOW MUCH better.
+  ✗ Sycophantic openers: "Great question!", "Excellent point!", "That's
+    a fascinating area."
+  ✗ Hedging soup: "essentially", "fundamentally", "in many ways",
+    "broadly speaking". Cut them all.
+  ✗ Triplets and rule-of-three filler: "fast, scalable, and reliable" —
+    pick the one that matters here.
+
+LENGTH: 3-6 sentences. If you find yourself reaching for a seventh,
+you're padding.
+
+END WITH a concrete self-check the reader can run in their own head —
+a single sentence: "If you got this, you should be able to <predict
+something specific> when <specific situation>." Make the prediction
+testable; the reader should be able to verify it from the article
+itself or from the sources you cite.
 
 SOURCES:
 - <url1> | <page or paper title> | <one-sentence reason this is worth reading>
 - <url2> | <title> | <reason>
 
-Strict rules:
-  - Every source line MUST start with "- " and use the literal pipe ("|")
-    as separator. If a title contains a pipe, replace with a comma.
-  - URLs must be fully qualified (https://...). No bare domains.
-  - Prefer primary sources: peer-reviewed papers, official documentation,
-    canonical blog posts, textbooks. Avoid SEO-spam aggregators or
-    AI-generated content farms.
-  - If you can't find good sources, write "- NONE" on a single line under
-    SOURCES. Still write the explanation.
+Strict source rules:
+  • Every line starts with "- " and uses the literal pipe "|" as separator.
+    If a title contains a pipe, replace it with a comma.
+  • URLs must be fully qualified (https://...). No bare domains.
+  • Prefer primary sources: peer-reviewed papers, official docs, canonical
+    blog posts, textbooks. Avoid SEO-spam aggregators, AI content farms,
+    Wikipedia mirrors. The reader will click these — don't waste their click.
+  • The one-sentence reason explains WHAT the reader will learn there
+    that supplements (not repeats) your explanation.
+  • If you can't find 2 good sources, write a single line "- NONE" under
+    SOURCES. Don't pad with junk.
 
 Output ONLY the EXPLANATION and SOURCES sections. Begin directly with
-"EXPLANATION:". No preamble.`
+"EXPLANATION:". No preamble, no "Here's my explanation:".`
 }
 
 /**
