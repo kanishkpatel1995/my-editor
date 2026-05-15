@@ -55,18 +55,23 @@ export function AnvilComprehensionPopover() {
   const para = session.paragraphs.find((p) => p.index === activePidx)
   if (!para?.comprehension) return null
 
-  const POPOVER_W = 380
-  const left = Math.max(8, Math.min(anchor.x, window.innerWidth - POPOVER_W - 8))
-  const top = Math.min(anchor.y, window.innerHeight - 340)
+  // Same scroll-safety as the strikethrough / claim popovers: cap maxHeight
+  // against the viewport and put the body in an inner scroll container so the
+  // explanation + references can grow arbitrarily without spilling off-screen.
+  const POPOVER_W = 400
+  const MARGIN = 12
+  const left = Math.max(MARGIN, Math.min(anchor.x, window.innerWidth - POPOVER_W - MARGIN))
+  const top = Math.max(MARGIN, Math.min(anchor.y, window.innerHeight - 100))
+  const maxHeight = window.innerHeight - top - MARGIN
 
   return (
     <div
       ref={popoverRef}
-      style={{ position: 'fixed', left, top, width: POPOVER_W, zIndex: 70 }}
-      className="border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
+      style={{ position: 'fixed', left, top, width: POPOVER_W, maxHeight, zIndex: 70 }}
+      className="flex flex-col border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-vermilion">
           ⊙ Comprehension · ¶ {String(para.index).padStart(2, '0')}
         </span>
@@ -79,7 +84,9 @@ export function AnvilComprehensionPopover() {
           <X size={11} />
         </button>
       </div>
-      <ComprehensionPrompt paragraphIndex={para.index} comprehension={para.comprehension} />
+      <div className="thin-scroll flex-1 overflow-y-auto">
+        <ComprehensionPrompt paragraphIndex={para.index} comprehension={para.comprehension} />
+      </div>
     </div>
   )
 }
