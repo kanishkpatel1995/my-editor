@@ -3,7 +3,8 @@ import { Check, X, Wand2, Sparkles, Undo2, Search, ShieldCheck } from 'lucide-re
 import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import type { Editor as TipTapEditor } from '@tiptap/react'
-import { replaceSpan } from '../../lib/anvil-tiptap-decorations'
+import { replaceSpan, wrapSpanAsLink } from '../../lib/anvil-tiptap-decorations'
+import type { VerifierSource } from '../../types'
 import type { AnvilAnnotationClickDetail } from '../../lib/anvil-tiptap-decorations'
 import { toast } from 'sonner'
 import { VerifierResultPanel } from './VerifierResultPanel'
@@ -164,6 +165,24 @@ export function AnvilCommentPopover({ editor }: Props) {
     ? Math.floor((Date.now() - verifyStartedAt) / 1000)
     : null
 
+  const onCite = (source: VerifierSource) => {
+    if (!editor) return
+    const result = wrapSpanAsLink(editor, annotation.span, source.url)
+    if (!result.found) {
+      toast.error("Couldn't find that span in the editor — text may have changed.")
+      return
+    }
+    // Implicitly accept the annotation when the user cites it — the
+    // strikethrough goes away because they've made an editorial decision.
+    void setDecision(activeId, 'accepted')
+    setActiveId(null)
+    if (result.alreadyReferenced) {
+      toast.success(`Cited (URL is also referenced elsewhere in the article).`)
+    } else {
+      toast.success('Inserted citation hyperlink into the article.')
+    }
+  }
+
   const submitRewrite = async () => {
     if (!editor) return
     if (!rewriteInstruction.trim()) return
@@ -189,19 +208,23 @@ export function AnvilCommentPopover({ editor }: Props) {
     }
   }
 
-  // Clamp position to viewport so the popover never spills offscreen.
-  const POPOVER_W = 360
-  const left = Math.max(8, Math.min(anchor.x, window.innerWidth - POPOVER_W - 8))
-  const top = Math.min(anchor.y, window.innerHeight - 240)
+  // Clamp position to viewport. We don't try to predict popover height —
+  // instead we cap maxHeight and the middle column scrolls internally so the
+  // sticky action bar at the bottom is always visible.
+  const POPOVER_W = 380
+  const MARGIN = 12
+  const left = Math.max(MARGIN, Math.min(anchor.x, window.innerWidth - POPOVER_W - MARGIN))
+  const top = Math.max(MARGIN, Math.min(anchor.y, window.innerHeight - 100))
+  const maxHeight = window.innerHeight - top - MARGIN
 
   return (
     <div
       ref={popoverRef}
-      style={{ position: 'fixed', left, top, width: POPOVER_W, zIndex: 70 }}
-      className="border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
+      style={{ position: 'fixed', left, top, width: POPOVER_W, maxHeight, zIndex: 70 }}
+      className="flex flex-col border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-vermilion">◌ Anvil note</span>
         <button
           type="button"
@@ -213,6 +236,7 @@ export function AnvilCommentPopover({ editor }: Props) {
         </button>
       </div>
 
+      <div className="thin-scroll flex-1 overflow-y-auto">
       <div className="px-3 py-2">
         <div className="mb-1 font-mono text-[10px] tracking-tight text-vermilion truncate" title={annotation.span}>
           &ldquo;{annotation.span || '(no span)'}&rdquo;
@@ -236,6 +260,7 @@ export function AnvilCommentPopover({ editor }: Props) {
           confidence={verifyResult?.confidence}
           explanation={verifyResult?.explanation}
           sources={verifyResult?.sources}
+          onCite={onCite}
         />
       ) : null}
 
@@ -251,9 +276,10 @@ export function AnvilCommentPopover({ editor }: Props) {
           </div>
         </div>
       ) : null}
+      </div>{/* end scroll area */}
 
       {!rewriteMode ? (
-        <div className="flex flex-wrap items-center gap-1 border-t border-rule-soft px-2 py-1.5">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-1 border-t border-rule-soft bg-paper px-2 py-1.5">
           <Button
             variant="primary"
             size="sm"
@@ -304,7 +330,7 @@ export function AnvilCommentPopover({ editor }: Props) {
           </Button>
         </div>
       ) : (
-        <div className="border-t border-rule-soft px-2 py-1.5">
+        <div className="flex-shrink-0 border-t border-rule-soft bg-paper px-2 py-1.5">
           <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.12em] text-mute">
             ✎ How should this span be rewritten?
           </div>

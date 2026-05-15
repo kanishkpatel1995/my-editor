@@ -499,7 +499,7 @@ export default function App() {
         />
       </div>
       <AnvilCommentPopover editor={editorInstance} />
-      <AnvilClaimPopover />
+      <AnvilClaimPopover editor={editorInstance} />
       <AnvilComprehensionPopover />
       <Toaster
         position="bottom-right"

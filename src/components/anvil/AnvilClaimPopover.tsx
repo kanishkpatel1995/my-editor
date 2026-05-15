@@ -3,14 +3,22 @@ import { Search, Check, X, AlertTriangle } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { useAnvilStore } from '../../store/anvilStore'
 import type { AnvilAnnotationClickDetail } from '../../lib/anvil-tiptap-decorations'
+import { wrapSpanAsLink } from '../../lib/anvil-tiptap-decorations'
 import { VerifierResultPanel } from './VerifierResultPanel'
+import type { VerifierSource } from '../../types'
+import type { Editor as TipTapEditor } from '@tiptap/react'
+import { toast } from 'sonner'
+
+interface Props {
+  editor: TipTapEditor | null
+}
 
 /**
  * Floating popover anchored to a clicked ANVIL claim decoration. Lets the
  * user kick off a web-search verification of the claim, or mark it OK
  * manually (no API call).
  */
-export function AnvilClaimPopover() {
+export function AnvilClaimPopover({ editor }: Props) {
   const session = useAnvilStore((s) => s.session)
   const verifyClaim = useAnvilStore((s) => s.verifyClaim)
   const markClaimOk = useAnvilStore((s) => s.markClaimOk)
@@ -62,19 +70,35 @@ export function AnvilClaimPopover() {
   const isVerifying = claim.verdict === 'pending'
   const wasVerified = claim.verdict === 'verified-true' || claim.verdict === 'verified-false' || claim.verdict === 'inconclusive' || claim.verdict === 'ok'
 
-  const POPOVER_W = 380
-  const left = Math.max(8, Math.min(anchor.x, window.innerWidth - POPOVER_W - 8))
-  const top = Math.min(anchor.y, window.innerHeight - 320)
+  const onCite = (source: VerifierSource) => {
+    if (!editor || !claim) return
+    const result = wrapSpanAsLink(editor, claim.text, source.url)
+    if (!result.found) {
+      toast.error("Couldn't find that claim text in the editor — it may have been edited.")
+      return
+    }
+    setActiveId(null)
+    if (result.alreadyReferenced) {
+      toast.success('Cited (URL is also referenced elsewhere in the article).')
+    } else {
+      toast.success('Inserted citation hyperlink into the article.')
+    }
+  }
 
+  const POPOVER_W = 400
+  const MARGIN = 12
+  const left = Math.max(MARGIN, Math.min(anchor.x, window.innerWidth - POPOVER_W - MARGIN))
+  const top = Math.max(MARGIN, Math.min(anchor.y, window.innerHeight - 100))
+  const maxHeight = window.innerHeight - top - MARGIN
 
   return (
     <div
       ref={popoverRef}
-      style={{ position: 'fixed', left, top, width: POPOVER_W, zIndex: 70 }}
-      className="border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
+      style={{ position: 'fixed', left, top, width: POPOVER_W, maxHeight, zIndex: 70 }}
+      className="flex flex-col border border-ink bg-paper shadow-[var(--shadow-lift)] animate-fade-in"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-rule-soft bg-paper-2 px-2 py-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-goldenrod">◌ Anvil claim</span>
         <button
           type="button"
@@ -86,21 +110,24 @@ export function AnvilClaimPopover() {
         </button>
       </div>
 
-      <div className="px-3 py-2">
-        <div className="text-[13px] leading-snug text-ink">&ldquo;{claim.text}&rdquo;</div>
+      <div className="thin-scroll flex-1 overflow-y-auto">
+        <div className="px-3 py-2">
+          <div className="text-[13px] leading-snug text-ink">&ldquo;{claim.text}&rdquo;</div>
+        </div>
+
+        {(isVerifying || wasVerified) ? (
+          <VerifierResultPanel
+            verdict={claim.verdict === 'verify' ? 'pending' : claim.verdict}
+            confidence={claim.confidence}
+            explanation={claim.explanation}
+            sources={claim.sources}
+            streaming={isVerifying}
+            onCite={onCite}
+          />
+        ) : null}
       </div>
 
-      {(isVerifying || wasVerified) ? (
-        <VerifierResultPanel
-          verdict={claim.verdict === 'verify' ? 'pending' : claim.verdict}
-          confidence={claim.confidence}
-          explanation={claim.explanation}
-          sources={claim.sources}
-          streaming={isVerifying}
-        />
-      ) : null}
-
-      <div className="flex items-center gap-1 border-t border-rule-soft px-2 py-1.5">
+      <div className="flex flex-shrink-0 items-center gap-1 border-t border-rule-soft bg-paper px-2 py-1.5">
         <Button
           variant="primary"
           size="sm"

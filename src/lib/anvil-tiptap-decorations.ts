@@ -292,3 +292,59 @@ export function replaceSpan(
   view.dispatch(view.state.tr.insertText(replacement, found.from, found.to))
   return true
 }
+
+/**
+ * Wrap the first occurrence of `span` in the editor in a markdown-style
+ * hyperlink to `url`. Uses TipTap's Link mark so the rendered output is a
+ * real `<a>` and the markdown round-trip preserves `[span](url)`.
+ *
+ * Returns an object describing what happened:
+ *  - found: did we locate the span in the doc?
+ *  - alreadyReferenced: was the URL already cited elsewhere in the article?
+ */
+export function wrapSpanAsLink(
+  editor: import('@tiptap/react').Editor,
+  span: string,
+  url: string,
+): { found: boolean; alreadyReferenced: boolean } {
+  if (!span || !url) return { found: false, alreadyReferenced: false }
+  const view = editor.view
+  // 1. Locate the span.
+  let found: { from: number; to: number } | null = null
+  view.state.doc.descendants((node, pos) => {
+    if (found || !node.isText) return
+    const text = node.text || ''
+    const idx = text.indexOf(span)
+    if (idx !== -1) found = { from: pos + idx, to: pos + idx + span.length }
+  })
+  if (!found) return { found: false, alreadyReferenced: false }
+
+  // 2. Check whether the URL is already referenced anywhere in the article
+  //    (either as a Link mark or as plain text). Informational only — we still
+  //    apply the wrap; the caller may surface this in a toast.
+  let alreadyReferenced = false
+  view.state.doc.descendants((node) => {
+    if (alreadyReferenced) return
+    if (node.isText && (node.text || '').includes(url)) {
+      alreadyReferenced = true
+      return
+    }
+    const marks = node.marks || []
+    for (const m of marks) {
+      if (m.type.name === 'link' && (m.attrs as { href?: string })?.href === url) {
+        alreadyReferenced = true
+        return
+      }
+    }
+  })
+
+  // 3. Apply the Link mark over the span.
+  editor.chain()
+    .focus()
+    .setTextSelection({ from: found.from, to: found.to })
+    .setLink({ href: url })
+    .setTextSelection(found.to)
+    .run()
+
+  return { found: true, alreadyReferenced }
+}

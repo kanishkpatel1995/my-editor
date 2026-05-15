@@ -1,4 +1,4 @@
-import { ExternalLink, ShieldCheck, ShieldX, ShieldAlert, Loader2 } from 'lucide-react'
+import { ExternalLink, ShieldCheck, ShieldX, ShieldAlert, Loader2, Link2 } from 'lucide-react'
 import type { VerifierSource } from '../../types'
 
 interface Props {
@@ -10,6 +10,9 @@ interface Props {
   header?: string
   /** True while the verifier is streaming. Shows a pulse + "checking…" label. */
   streaming?: boolean
+  /** When supplied, each source gets a small "Cite" button that wraps the
+   *  span/claim text in a markdown link to that source's URL. */
+  onCite?: (source: VerifierSource) => void
 }
 
 /**
@@ -18,7 +21,7 @@ interface Props {
  * Stateless, presentational — caller controls when to render it.
  */
 export function VerifierResultPanel({
-  verdict, confidence, explanation, sources, header, streaming,
+  verdict, confidence, explanation, sources, header, streaming, onCite,
 }: Props) {
   if (!verdict && !explanation && !streaming) return null
 
@@ -51,21 +54,35 @@ export function VerifierResultPanel({
       {sources && sources.length ? (
         <div className="mt-2">
           <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-mute">Sources</div>
-          <ul className="mt-1 space-y-1">
+          <ul className="mt-1 space-y-1.5">
             {sources.map((s, i) => (
               <li key={i} className="border-l-2 border-rule-soft pl-2">
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-start gap-1 text-[11.5px] text-vermilion hover:underline"
-                  title={s.url}
-                >
-                  <ExternalLink size={10} className="mt-0.5 flex-shrink-0" />
-                  <span className="break-words font-mono">
-                    {s.title || s.url}
-                  </span>
-                </a>
+                <div className="flex items-start gap-1.5">
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex-1 min-w-0 text-[11.5px] text-vermilion hover:underline"
+                    title={s.url}
+                  >
+                    <span className="inline-flex items-start gap-1">
+                      <ExternalLink size={10} className="mt-0.5 flex-shrink-0" />
+                      <span className="break-words font-mono">
+                        {s.title || s.url}
+                      </span>
+                    </span>
+                  </a>
+                  {onCite ? (
+                    <button
+                      type="button"
+                      onClick={() => onCite(s)}
+                      title="Wrap the span in the editor as [span](this-url) — a real hyperlink in the article"
+                      className="inline-flex flex-shrink-0 items-center gap-0.5 border border-rule-soft bg-paper-2 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.08em] text-ink-soft hover:border-vermilion hover:text-vermilion"
+                    >
+                      <Link2 size={9} /> Cite
+                    </button>
+                  ) : null}
+                </div>
                 {s.snippet ? (
                   <div className="mt-0.5 text-[11.5px] leading-snug text-ink-soft">{s.snippet}</div>
                 ) : null}
