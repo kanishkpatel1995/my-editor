@@ -53,7 +53,18 @@ export const MarkdownEditor = forwardRef<EditorHandle, EditorProps>(function Mar
         link: false,
         codeBlock: { HTMLAttributes: { class: 'pre-block' } },
       }),
-      Link.configure({
+      // Extended so every rendered <a> carries a `title` showing the URL +
+      // a hint that ⌘-click opens it. The `openOnClick: false` keeps a plain
+      // click from leaving the page; ⌘/Ctrl-click is wired in editorProps.
+      Link.extend({
+        renderHTML({ HTMLAttributes }) {
+          const href = typeof HTMLAttributes.href === 'string' ? HTMLAttributes.href : ''
+          return ['a', {
+            ...HTMLAttributes,
+            title: href ? `${href}\n⌘-click to open` : undefined,
+          }, 0]
+        },
+      }).configure({
         openOnClick: false,
         autolink: true,
         HTMLAttributes: { rel: 'noopener noreferrer' },
@@ -75,6 +86,21 @@ export const MarkdownEditor = forwardRef<EditorHandle, EditorProps>(function Mar
       onChange?.(md)
     },
     editorProps: {
+      // ⌘-click (or Ctrl-click on Win/Linux) opens links in a new tab.
+      // Plain clicks still just position the cursor so the user can edit
+      // the link text without immediately leaving the page.
+      handleDOMEvents: {
+        click(_view, event) {
+          const target = event.target as HTMLElement
+          const link = target.closest('a') as HTMLAnchorElement | null
+          if (link && link.href && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            window.open(link.href, '_blank', 'noopener,noreferrer')
+            return true
+          }
+          return false
+        },
+      },
       handleDrop(view, event, _slice, moved) {
         if (moved) return false
         const data = event.dataTransfer?.getData('application/x-myeditor-image')
