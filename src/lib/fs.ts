@@ -83,6 +83,22 @@ export async function ensureRWPermission(
   return req === 'granted'
 }
 
+/**
+ * NON-INVASIVE permission check. Calls only `queryPermission` — never
+ * `requestPermission`. Safe to call on page load / mount without a user
+ * gesture. Returns 'granted' / 'prompt' / 'denied'.
+ *
+ * Use this when hydrating cached handles, because `requestPermission`
+ * silently fails outside a user gesture and we'd lose the cached state.
+ */
+export async function queryRWPermission(
+  handle: FileSystemHandle,
+): Promise<PermissionState> {
+  const opts: { mode: 'readwrite' } = { mode: 'readwrite' }
+  const cur = await handle.queryPermission?.(opts)
+  return (cur as PermissionState) || 'prompt'
+}
+
 export function fsAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window
 }

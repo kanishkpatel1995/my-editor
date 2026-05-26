@@ -4,8 +4,7 @@ import { Callout } from '../ui/Callout'
 import { useChatStore } from '../../store/chatStore'
 import { ThreadList } from './ThreadList'
 import { ThreadView } from './ThreadView'
-import { pickDirectory, ensureRWPermission } from '../../lib/fs'
-import { loadChatRootHandle } from '../../lib/handles-store'
+import { pickDirectory } from '../../lib/fs'
 import { toast } from 'sonner'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
@@ -29,6 +28,9 @@ interface Props {
 export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props) {
   const config = useChatStore((s) => s.config)
   const rootDir = useChatStore((s) => s.rootDir)
+  const pendingReconnectHandle = useChatStore((s) => s.pendingReconnectHandle)
+  const hydrateChatRoot = useChatStore((s) => s.hydrateChatRoot)
+  const reconnectChatRoot = useChatStore((s) => s.reconnectChatRoot)
   const setRootDir = useChatStore((s) => s.setRootDir)
   const loadThreads = useChatStore((s) => s.loadThreads)
   const refreshModels = useChatStore((s) => s.refreshModels)
@@ -49,19 +51,8 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
   })
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const cached = await loadChatRootHandle()
-      if (cached && !cancelled) {
-        const ok = await ensureRWPermission(cached)
-        if (ok) {
-          await setRootDir(cached)
-          await loadThreads()
-        }
-      }
-    })()
-    return () => { cancelled = true }
-  }, [setRootDir, loadThreads])
+    void hydrateChatRoot()
+  }, [hydrateChatRoot])
 
   useEffect(() => {
     if (config) void refreshModels()
@@ -150,6 +141,8 @@ export function ChatPanel({ open, onClose, onInsertText, onInsertImage }: Props)
           newThread={newThread} selectThread={selectThread}
           config={config}
           onInsertText={onInsertText} onInsertImage={onInsertImage}
+          pendingReconnectHandle={pendingReconnectHandle}
+          reconnectChatRoot={reconnectChatRoot}
         />
       )}
       </aside>
@@ -163,6 +156,7 @@ function ChatTabBody(props: any) {
     showList, setShowList, rootDir, pickFolder, loadThreads, refreshModels,
     active, threads, newThread, selectThread, config,
     onInsertText, onInsertImage,
+    pendingReconnectHandle, reconnectChatRoot,
   } = props
   return (
     <>
@@ -259,6 +253,12 @@ function ChatTabBody(props: any) {
       <div className="thin-scroll flex flex-1 min-h-0 flex-col">
         {showList ? (
           <ThreadList onClose={() => setShowList(false)} />
+        ) : !rootDir && pendingReconnectHandle ? (
+          <ReconnectChatBanner
+            handleName={pendingReconnectHandle.name}
+            onReconnect={() => void reconnectChatRoot()}
+            onPickFresh={pickFolder}
+          />
         ) : !rootDir ? (
           <FolderEmptyState
             suggested={config?.chatFolderPath || CHAT_HISTORY_PATH}
@@ -300,6 +300,40 @@ function ChatTabBody(props: any) {
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * One-click "Reconnect" banner shown when a cached chat-root handle exists
+ * in IndexedDB but Chrome reset the granted permission to 'prompt' on reload.
+ * Chrome only re-shows the permission dialog from inside a user gesture, so
+ * we surface a dedicated button instead of going back to the full picker.
+ */
+function ReconnectChatBanner({
+  handleName, onReconnect, onPickFresh,
+}: { handleName: string; onReconnect: () => void; onPickFresh: () => void }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center animate-fade-in">
+      <div className="label-eyebrow text-vermilion">Reconnect needed</div>
+      <h3 className="text-lg font-medium tracking-tight text-ink">
+        Chrome forgot the chat folder permission
+      </h3>
+      <p className="max-w-[32ch] text-xs leading-relaxed text-ink-soft">
+        We remember your chat folder (<code className="font-mono text-ink">{handleName}</code>),
+        but Chrome requires one click after each reload before it'll let us
+        read or write it. This is a browser limitation, not a re-pick.
+      </p>
+      <Button variant="primary" size="md" onClick={onReconnect}>
+        ↻ Reconnect to {handleName}
+      </Button>
+      <button
+        type="button"
+        onClick={onPickFresh}
+        className="font-mono text-[10px] uppercase tracking-[0.08em] text-mute underline-offset-4 hover:text-ink hover:underline"
+      >
+        or pick a different folder
+      </button>
+    </div>
   )
 }
 

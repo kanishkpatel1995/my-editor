@@ -15,8 +15,8 @@ import {
   writeChatFile,
 } from '../lib/chat-storage'
 import { saveImageToThread, urlToBlob } from '../lib/image-utils'
-import { ensureRWPermission } from '../lib/fs'
-import { saveChatRootHandle } from '../lib/handles-store'
+import { ensureRWPermission, queryRWPermission } from '../lib/fs'
+import { loadChatRootHandle, saveChatRootHandle } from '../lib/handles-store'
 import {
   saveAttachmentToThread,
   loadAttachmentDataUrl,
@@ -40,6 +40,10 @@ export interface SendOptions {
 interface ChatStore {
   config: Config | null
   rootDir: FileSystemDirectoryHandle | null
+
+  /** A cached chat-root handle exists but Chrome needs a user gesture before
+   *  we can re-grant access. UI shows a one-click "Reconnect" banner. */
+  pendingReconnectHandle: FileSystemDirectoryHandle | null
 
   threads: ChatThread[]
   activeThreadId: string | null
@@ -65,6 +69,13 @@ interface ChatStore {
   // Actions
   setConfig: (c: Config) => void
   setRootDir: (h: FileSystemDirectoryHandle | null) => Promise<void>
+  /** Non-invasive hydrate of the cached chat-root handle on mount. Uses only
+   *  queryPermission (no user gesture needed). If 'granted', sets rootDir
+   *  silently; if 'prompt', stashes in pendingReconnectHandle for the UI. */
+  hydrateChatRoot: () => Promise<void>
+  /** User-click handler that fires requestPermission on the pending handle.
+   *  Must be called from inside a user-gesture event handler. */
+  reconnectChatRoot: () => Promise<boolean>
   refreshModels: (force?: boolean) => Promise<void>
   loadThreads: () => Promise<void>
   newThread: (mode?: ChatMode) => Promise<string>
@@ -96,6 +107,7 @@ const hms = () => new Date().toISOString().slice(11, 19)
 export const useChatStore = create<ChatStore>((set, get) => ({
   config: null,
   rootDir: null,
+  pendingReconnectHandle: null,
   threads: [],
   activeThreadId: null,
   models: [],
@@ -123,8 +135,31 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   }),
 
   setRootDir: async (h) => {
-    set({ rootDir: h })
+    set({ rootDir: h, pendingReconnectHandle: null })
     if (h) await saveChatRootHandle(h)
+  },
+
+  hydrateChatRoot: async () => {
+    const cached = await loadChatRootHandle()
+    if (!cached) return
+    // queryPermission only — never requestPermission on auto-load.
+    const state = await queryRWPermission(cached)
+    if (state === 'granted') {
+      set({ rootDir: cached, pendingReconnectHandle: null })
+      await get().loadThreads()
+      return
+    }
+    set({ pendingReconnectHandle: cached })
+  },
+
+  reconnectChatRoot: async () => {
+    const cached = get().pendingReconnectHandle
+    if (!cached) return false
+    const ok = await ensureRWPermission(cached)
+    if (!ok) return false
+    set({ rootDir: cached, pendingReconnectHandle: null })
+    await get().loadThreads()
+    return true
   },
 
   refreshModels: async (force = false) => {

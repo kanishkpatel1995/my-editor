@@ -65,6 +65,8 @@ export default function App() {
   const articleRoot = useArticleStore((s) => s.rootDir)
   const articleSetRoot = useArticleStore((s) => s.setRootDir)
   const articleHydrated = useArticleStore((s) => s.hydrated)
+  const articlePendingReconnect = useArticleStore((s) => s.pendingReconnectHandle)
+  const articleReconnect = useArticleStore((s) => s.reconnectRootDir)
   const articleLatestRef = useArticleStore((s) => s.latestRef)
   const articleCurrent = useArticleStore((s) => s.current)
   const articleOpen = useArticleStore((s) => s.openArticle)
@@ -468,6 +470,36 @@ export default function App() {
         onOpenCompanion={onOpenCompanion}
         onSendCompanionToChat={onSendCompanionToChat}
       />
+
+      {/* Reconnect strip — when Chrome forgot the writing-workflow folder
+          permission, surface a one-click re-grant instead of forcing a
+          full re-pick of the same folder. */}
+      {articleHydrated && !articleRoot && articlePendingReconnect ? (
+        <div className="flex items-center gap-3 border-b border-vermilion bg-vermilion-tint px-3 py-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-vermilion">
+            ⟳ Reconnect Writing-Workflow
+          </span>
+          <span className="text-[12.5px] text-ink">
+            Chrome forgot folder permission for <code className="font-mono text-[11px]">{articlePendingReconnect.name}</code>.
+            One click and we're back in.
+          </span>
+          <button
+            type="button"
+            onClick={() => void articleReconnect()}
+            className="ml-auto inline-flex h-7 items-center border border-vermilion bg-vermilion px-2 font-mono text-[11px] uppercase tracking-tight text-paper hover:bg-ink hover:border-ink"
+          >
+            ↻ Reconnect
+          </button>
+          <button
+            type="button"
+            onClick={pickWorkflowRoot}
+            className="font-mono text-[10px] uppercase tracking-[0.08em] text-mute underline-offset-4 hover:text-ink hover:underline"
+          >
+            or pick different
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-1 min-h-0">
         <main className="thin-scroll flex-1 overflow-y-auto bg-paper">
           {showTodayEmpty ? (

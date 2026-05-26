@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ArticleRef, CompanionKind, PromptDef } from '../types'
-import { ensureRWPermission } from '../lib/fs'
+import { ensureRWPermission, queryRWPermission } from '../lib/fs'
 import {
   loadWorkflowRootHandle,
   saveWorkflowRootHandle,
@@ -41,9 +41,17 @@ interface ArticleStore {
   /** Set when initial hydrate has run, success or no-handle. */
   hydrated: boolean
 
+  /** A cached handle exists but Chrome needs a user gesture before we can
+   *  re-grant access. UI shows a one-click "Reconnect" banner — clicking it
+   *  fires requestPermission with proper user activation. */
+  pendingReconnectHandle: FileSystemDirectoryHandle | null
+
   // actions
   setRootDir: (h: FileSystemDirectoryHandle | null) => Promise<void>
   hydrate: () => Promise<void>
+  /** Fired from a user-click handler to actually request permission on the
+   *  `pendingReconnectHandle`. Returns true if granted. */
+  reconnectRootDir: () => Promise<boolean>
   refreshDetection: () => Promise<void>
   openArticle: (ref: ArticleRef) => Promise<{ text: string; handle: FileSystemFileHandle } | null>
   saveCurrent: (text: string) => Promise<void>
@@ -69,9 +77,10 @@ export const useArticleStore = create<ArticleStore>((set, get) => ({
   prompts: [],
   promptsLoadedAt: 0,
   hydrated: false,
+  pendingReconnectHandle: null,
 
   setRootDir: async (h) => {
-    set({ rootDir: h })
+    set({ rootDir: h, pendingReconnectHandle: null })
     if (h) await saveWorkflowRootHandle(h)
   },
 
@@ -81,14 +90,27 @@ export const useArticleStore = create<ArticleStore>((set, get) => ({
       set({ hydrated: true })
       return
     }
-    const ok = await ensureRWPermission(cached)
-    if (!ok) {
-      set({ hydrated: true })
+    // Non-invasive: only `queryPermission`. Calling `requestPermission` here
+    // would silently fail (no user gesture on auto-load) and we'd lose the
+    // cached state on every reload.
+    const state = await queryRWPermission(cached)
+    if (state === 'granted') {
+      set({ rootDir: cached, hydrated: true })
+      await get().refreshDetection()
       return
     }
-    set({ rootDir: cached })
+    // Cached handle exists but Chrome needs a click to re-grant.
+    set({ pendingReconnectHandle: cached, hydrated: true })
+  },
+
+  reconnectRootDir: async () => {
+    const cached = get().pendingReconnectHandle
+    if (!cached) return false
+    const ok = await ensureRWPermission(cached)
+    if (!ok) return false
+    set({ rootDir: cached, pendingReconnectHandle: null })
     await get().refreshDetection()
-    set({ hydrated: true })
+    return true
   },
 
   refreshDetection: async () => {
